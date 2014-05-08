@@ -1,13 +1,34 @@
 <?php
+
+function include_all_tests($folder){
+    foreach (glob("{$folder}/*.php") as $filename)
+    {
+        include $filename;
+    }
+}
+
+// TODO - this currently isn't working, not sure how to access classes declared in
+// an included script file, going to explicitly run the project specific tests seprately
+// for now
+$unit_test_classes = array();
+foreach( get_declared_classes() as $class ) {
+    if ($class instanceof Unit_Tests) {
+         $unit_test_classes[] = $class;
+    }
+}
+
 include_once("record_uploader.php");
+include_all_tests("../user/UDFs/tests");
 
 $old_error_handler = set_error_handler("myErrorHandler");
-$unit_tests = new Unit_Tests();
-$unit_test_methods = get_class_methods("Unit_Tests");
-foreach ($unit_test_methods as $test) {
-   $unit_tests->$test();
+foreach ($unit_test_classes as $unit_test_class) {
+    $unit_tests = new $unit_test_class();
+    $unit_test_methods = get_class_methods($unit_tests);
+    foreach ($unit_test_methods as $test) {
+       $unit_tests->$test();
+    }
 }
-echo "All unit tests have been run.";
+echo "All SYSTEM unit tests have been run.<br>\n";
 
 // modified version of code available at
 // http://stackoverflow.com/questions/3316899/try-catch-with-php-warnings
