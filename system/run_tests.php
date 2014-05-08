@@ -51,14 +51,14 @@ function myErrorHandler($errno, $errstr, $errfile, $errline)
 
 class Unit_Tests {
 
-    private $default_processor_config;
-    private $test_success_count;
+    protected $default_processor_config;
+    protected $test_success_count;
 
     function __construct() {
         $this->default_processor_config = array( 'table' => 'test', 'column' => 'test' );
     }
 
-    private function assertEquals($expected, $actual, $message = "") {
+    protected function assertEquals($expected, $actual, $message = "") {
         assert($expected == $actual, "Error: expected value '". $expected . "' but received '" . $actual . "'"
                 . ($message != "" ? " - " . $message : "") ); 
     }
