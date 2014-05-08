@@ -3,13 +3,97 @@
 // TODO - create a modifier that will repeat values down the dataset during subsequent calls to it
 
 abstract class Value_Modifier {
-    
-    function __construct() {
 
+    // this is set in the constructor of the parent as all 
+    private $parent_value_processor;
+
+    function set_parent_value_processor($value_processor) {
+       $this->parent_value_processor; 
+    }
+
+    function __construct() {
+         
     }
 
    abstract function modify_value($value); 
 
+}
+
+/*
+ * Designed to validate a coded value where the codes are stored in a dependent table
+ *
+ */
+class Code_Value_Validator extends Value_Modifier {
+
+    function modify_value($value) {
+
+    }
+}
+
+class Enum_Validator extends Value_Modifier {
+
+    // TODO - implement this
+    function modify_value($value) {
+
+    }
+}
+
+/*
+ * A value repeater is designed to accomodate accepting datasets that feature gaps in
+ * the columns, and are expected to be interpreted by cascading down the most recent
+ * value in the column. This works well for manually entered data that frequently has
+ * redundant column values that appear next to one another in the dataset.
+ * 
+ * Example: recording dates for observations, if one sheet is used for multiple days,
+ * this allows the date to be written once, and all records below it are assumed to be
+ * on the same day until one appears with a new value;
+ *
+ */
+class Value_Repeater extends Value_Modifier {
+
+    private $last_value;
+
+    function __construct() {
+        $this->last_value = NULL;
+    }
+
+    function modify_value($value) {
+        if( $value != ''){
+            $this->last_value = $value;
+            return $this->last_value;
+        } else {
+            if ( is_null($this->last_value)) {
+                throw new Exception("No value provided for repeating column.");
+            }
+            else {
+                return $this->last_value; 
+            }
+        }
+    }
+    
+}
+
+class Time_Validator_Formatter extends Value_Modifier {
+
+    // TODO - expand to handle other formats, am/pm, seconds and milliseconds
+
+    function modify_value($value) {
+        $time_parts = explode(":", $value);
+        assert(count($time_parts) == 2, "Error with formatting of a time value.");
+        $min = $time_parts[1];
+        $hour = $time_parts[0];
+        if (  ! is_numeric($min)  || ! is_numeric($hour) || 
+                intval($hour) < 0 || intval($hour) > 23  ||
+                intval($min) < 0  || intval($min) > 59){
+            throw new Exception("Error with time, values are non-numeric or outside of proper range for hours or minutes.");
+        }
+        else{
+            // TODO - will need to do some value modification when doing other date formats as input
+            // (I don not believe the database can handle am/pm), that is why this is declared a modifier despite only validating
+            // right now
+            return $value;
+        }
+    }
 }
 
 // 'Enum' for specifying parts of a date input
@@ -67,7 +151,7 @@ class Date_Validator_Formatter extends Value_Modifier {
             throw new Exception("Error with date formatting.");
         }
         else{
-            $date = $date_parts[$this->year_pos] . '-' . $date_parts[$this->month_pos] . '-' . $date_parts[$this->day_pos] . ' ';
+            $date = $date_parts[$this->year_pos] . '-' . $date_parts[$this->month_pos] . '-' . $date_parts[$this->day_pos];
         }
         return $date;
     }

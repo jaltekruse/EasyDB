@@ -40,11 +40,7 @@ class Value_Processor {
         if ( ! isset($parameters['strip_whitespace'] )) $parameters['strip_whitespace'] = Strip_Whitespace::BOTH;
         assert( isset($parameters['table']) && isset($parameters['column']), "Table and column must be specified for a Value_Processor)");
         
-        if ( isset($parameters['modifiers']))
-            $this->modifiers = $parameters['modifiers'];
-        else
-            $this->modifiers = array();
-        $this->validators = array();
+        $this->modifiers = array();
         switch($parameters['strip_whitespace']) {
             case Strip_Whitespace::BEFORE: $this->modifiers[] = new Strip_Whitespace_Before(); break;
             case Strip_Whitespace::AFTER: $this->modifiers[] = new Strip_Whitespace_After(); break;
@@ -52,8 +48,16 @@ class Value_Processor {
             case Strip_Whitespace::NONE: break; 
             default: throw new Exception("Invalid whitespace handling provided.");
         }
+        if ( isset($parameters['modifiers'])){
+            $this->modifiers = array_merge($this->modifiers, $parameters['modifiers']);
+        }
+        $this->validators = array();
+        
+        foreach ($this->modifiers as $modifier) {
+            $modifier->set_parent_value_processor($this);
+        }
 
-        // detect the type of the column and any foreign keys, automatically add 
+        // detect the type of the column and foreign keys, automatically add validators for them
 
     }
 
