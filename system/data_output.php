@@ -19,6 +19,7 @@ abstract class Data_Output {
     
     abstract function convert_to_output_format($value); 
     abstract function number_of_inputs();
+    abstract function get_last_val();
     
     function finished_handling_an_input(){
         $this->inputs_handled_count++;
@@ -29,6 +30,10 @@ abstract class Data_Output {
             return TRUE;
         else
             return FALSE;
+    }
+
+    function add_values_to_array(&$val_list) {
+        array_push($val_list, $this->get_last_val());
     }
 
     // this is going to mostly function the same as the can_take_more_input method
@@ -52,7 +57,8 @@ class Single_Column_Output extends Data_Output {
     function __construct($value_processor, $output_column_name){
         $this->output_column_name = $output_column_name;
         $this->value_processor = $value_processor;  
-        $this->value_processor->init();
+        // TODO - pass down table name from above
+        $value_processor->init("dummy_table_name_fixme");
     }
     
     function number_of_inputs() { 
@@ -73,8 +79,10 @@ class Single_Column_Output extends Data_Output {
             $this->finished_handling_an_input();
         } 
     }
+
 }
 
+// TODO - finish this
 class Column_Combiner_Output extends Data_Output {
 
     private $ouput_column_name;
@@ -82,15 +90,16 @@ class Column_Combiner_Output extends Data_Output {
     private $value_processor_count;
     private $last_vals;
 
-    public function get_last_vals(){
-        return $this->last_vals();
+    public function get_last_val(){
+        return implode(" ", $this->last_vals);
     }
 
-    function __construct($value_processor, $output_column_name){
+    function __construct($value_processors, $output_column_name){
         $this->output_column_name = $output_column_name;
         $this->value_processors = $value_processors;  
         foreach($this->value_processors as $value_processor) {
-            $value_processor->init();
+            // TODO - pass down table name from above
+            $value_processor->init("dummy_table_name_fixme");
         }
         $this->value_processor_count = count($this->value_processors);
     }
@@ -101,7 +110,7 @@ class Column_Combiner_Output extends Data_Output {
 
     function convert_to_output_format($value) {
         try {
-            $this->last_vals[$this->get_current_index] = $this->value_processor->process_value($value); 
+            $this->last_vals[$this->get_current_index()] = $this->value_processors[$this->get_current_index()]->process_value($value); 
 
             // TODO - finally blocks are only in PHP 5.5+, this is a hackt get around it
             $this->finished_handling_an_input();
@@ -113,7 +122,6 @@ class Column_Combiner_Output extends Data_Output {
             $this->finished_handling_an_input();
         }
     }
-
 }
 
 ?>

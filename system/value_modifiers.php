@@ -23,6 +23,12 @@ abstract class Value_Modifier {
 
 }
 
+// TODO - implement a value creating code validator
+// will allow for situations like the filename handling in mbed, where I want to have a dependent
+// table to store the filenames, but I don't want to make users explicitly create a new entry in
+// the filenames table to allow them to upload a sheet
+// For this be sure to put a validator ahead of it to make sure it follows the formatting convention for filenames
+
 /*
  * Designed to validate a coded value where the codes are stored in a dependent table
  *

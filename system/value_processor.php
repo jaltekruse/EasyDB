@@ -54,8 +54,7 @@ class Value_Processor {
      *
      * Takes an associative array for configuration parameter values. Fields used to set the array are:
      * ------------------------------------------------------------------------------------------------
-     * table: name of table
-     * column: name of column
+     * column: name of column the data is to be stored in
      * strip_whitespace: Strip_Whitespace.[ BEFORE | AFTER | BOTH ]
      * modifiers: modifers to run on this column, subclasses of Value_Modifier
      * validators: validators to run on this column, subclasses of Value_Validator
@@ -66,8 +65,7 @@ class Value_Processor {
      */
     function __construct(&$db, $user_config, $parameters) {
         if ( ! isset($parameters['strip_whitespace'] )) $parameters['strip_whitespace'] = Strip_Whitespace::BOTH;
-        assert( isset($parameters['table']) && isset($parameters['column']), "Table and column must be specified for a Value_Processor)");
-        $this->table = $parameters['table'];
+        assert(isset($parameters['column']), "Column must be specified for a Value_Processor)");
         $this->column = $parameters['column'];
         $this->db = $db;
         $this->user_config = $user_config;
@@ -93,7 +91,8 @@ class Value_Processor {
 
     }
 
-    function init() {
+    function init($table) {
+        $this->table = $table;
         foreach ($this->modifiers as $modifier) {
             $modifier->init();
         }

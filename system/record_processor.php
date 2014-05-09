@@ -20,6 +20,9 @@ class Record_Processor {
       * inputs (taking into account data_outputs that use up several columns). This should be changed
       * to allow the columns to be moved around and passed an associative array (data will also need to 
       * be send associated with column names, and processors will need to know the names of the columns to processes) 
+      * extra_fields - to be appended after the columns provided in the main records
+      *     This can be used to store information about the datasheet, uploader, observer, or anything that can
+      *     be applied to the whole sheet to save the time of copying it into each row manually
       */
     function __construct($parameters){
         assert( isset($parameters['data_outputs']), "Must supply data outputs for Record_Processor.");
@@ -53,6 +56,14 @@ class Record_Processor {
         if ($this->data_outputs[$index]->expecting_more_input()){
             throw new Exception("Not all expected values were provided.");
         }
+    }
+
+    function output_to_array() {
+        $output = array();
+        foreach ($this->data_outputs as $data_output) {
+            $data_output->add_values_to_array($output);
+        }
+        return $output;
     }
 }
 

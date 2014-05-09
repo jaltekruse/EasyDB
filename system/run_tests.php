@@ -69,13 +69,36 @@ class Unit_Tests {
     protected $user_config;
 
     function __construct($user_config) {
-        $this->default_processor_config = array( 'table' => 'test', 'column' => 'test' );
+        $this->default_processor_config = array( 'column' => 'test' );
         $this->user_config = $user_config;
     }
 
     protected function assertEquals($expected, $actual, $message = "") {
-        assert($expected == $actual, "Error: expected value '". $expected . "' but received '" . $actual . "'"
-                . ($message != "" ? " - " . $message : "") ); 
+        if ($expected != $actual) {
+            echo "Error: expected value '";
+            print_r($expected);
+            echo "' but received '";
+            print_r($actual);
+            echo "'" . ($message != "" ? " - " . $message : "");
+        }
+    }
+
+    function test_column_combiner_processor() {
+        $db = 1;
+        $val_processors = array();
+        $processor_config = $this->default_processor_config;
+        $processor_config['modifiers'] = array(new Date_Validator_Formatter());
+        $val_processors[] = new Value_Processor($db, $this->user_config, $processor_config);
+        $processor_config = $this->default_processor_config;
+        $processor_config['modifiers'] = array(new Time_Validator_Formatter());
+        $val_processors[] = new Value_Processor($db, $this->user_config, $processor_config);
+        
+        $data_output = new Column_Combiner_Output($val_processors, "date_time");
+
+        $record_processor = new Record_Processor(array('data_outputs' => array($data_output)));
+        $record_processor->process_row(array("22/3/2012", "2:30"));
+        $this->assertEquals("2012-3-22 2:30", $record_processor->get_outputs()[0]->get_last_val());
+        $this->assertEquals(array("2012-3-22 2:30"), $record_processor->output_to_array());
     }
 
     function test_record_processor() {
@@ -103,6 +126,7 @@ class Unit_Tests {
         $this->assertEquals("2:30", $record_processor->get_outputs()[0]->get_last_val());
         $this->assertEquals("4:30", $record_processor->get_outputs()[1]->get_last_val());
         $this->assertEquals("2012-3-22", $record_processor->get_outputs()[2]->get_last_val());
+        $this->assertEquals(array("2:30", "4:30", "2012-3-22"), $record_processor->output_to_array());
     }
 
     function test_code_value_validator(){
@@ -124,9 +148,9 @@ class Unit_Tests {
         if ( ! $result ) throw new Exception("Error adding test data: " . $db->error);
         
         $processor_config = $this->default_processor_config;
-        $processor_config['modifiers'] = array(new Code_Value_Validator('animals_easy_db_test_temp', 'animal_code', 'animal_id'));
+        $processor_config['modifiers'] = array(new Code_Value_Validator('animals_easy_db_test_temp'));
         $vp = new Value_Processor($db, $this->user_config, $processor_config);
-        $vp->init();
+        $vp->init("test_record_table");
         $this->assertEquals( 1, $vp->process_value("animal_code"), "Error getting corret key from a code value table");
         $this->assertEquals( 2, $vp->process_value("animal_code2"), "Error getting corret key from a code value table");
         $db->query("DROP TABLE IF EXISTS `mbed`.`animals_easy_db_test_temp`");
