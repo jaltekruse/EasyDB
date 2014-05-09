@@ -12,6 +12,34 @@ class Value_Processor {
 
     private $modifiers;
     private $validators;
+    private $table;
+    private $column;
+    private $db;
+    private $user_config;
+
+    // These methods allow access to these fields for all of the validators and modifiers, which have a
+    // reference back to this object
+    
+    // USE THIS TO ALLOW FOR ADDING FEATURES LIKE TABLE PREFIXES FOR SHARING A DATABASE WITH ANOTHER USER
+    public function get_table() {
+        return $this->table;
+    }
+
+    public function get_column() {
+        return $this->column;
+    }
+
+    public function get_db() {
+        return $this->db;
+    }
+
+    public function get_code_column_for_table( $table) {
+       return $this->user_config->get_code_column_for_table($table);
+    }
+
+    public function get_id_column_for_table( $table) {
+       return $this->user_config->get_id_column_for_table($table);
+    }
 
     /*
      * Constructs an object to represnt the modifications and validators for a singe column.
@@ -36,9 +64,13 @@ class Value_Processor {
      *      names of default validators provided, custom modifers/validators can be passed in a map
      *
      */
-    function __construct(&$db, $parameters) {
+    function __construct(&$db, $user_config, $parameters) {
         if ( ! isset($parameters['strip_whitespace'] )) $parameters['strip_whitespace'] = Strip_Whitespace::BOTH;
         assert( isset($parameters['table']) && isset($parameters['column']), "Table and column must be specified for a Value_Processor)");
+        $this->table = $parameters['table'];
+        $this->column = $parameters['column'];
+        $this->db = $db;
+        $this->user_config = $user_config;
         
         $this->modifiers = array();
         switch($parameters['strip_whitespace']) {
@@ -59,6 +91,15 @@ class Value_Processor {
 
         // detect the type of the column and foreign keys, automatically add validators for them
 
+    }
+
+    function init() {
+        foreach ($this->modifiers as $modifier) {
+            $modifier->init();
+        }
+        foreach ($this->validators as $validator) {
+            $validator->init();
+        }
     }
 
     /*

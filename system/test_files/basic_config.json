@@ -1,0 +1,17 @@
+{
+    "database_connections" : 
+    {
+        "read_write" : 
+        {
+            "username"    : "root", 
+            "host"        : "localhost",
+            "password"    : "root",
+            "port"        : "",
+            "database"    : "mbed"
+        }
+    },
+    "code_tables" :
+    {
+            "animals_easy_db_test_temp" :                     { "id_column" : "animal_id",                "code_column" : "animal_code" }
+    }
+}

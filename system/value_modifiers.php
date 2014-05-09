@@ -5,17 +5,21 @@
 abstract class Value_Modifier {
 
     // this is set in the constructor of the parent as all 
-    private $parent_value_processor;
+    protected $parent_value_processor;
 
-    function set_parent_value_processor($value_processor) {
-       $this->parent_value_processor; 
+    function set_parent_value_processor(&$value_processor) {
+        $this->parent_value_processor = $value_processor;
     }
 
     function __construct() {
          
     }
 
-   abstract function modify_value($value); 
+    abstract function modify_value($value); 
+   
+    // this is mostly unused, just for generating some starting state that cannot be known
+    // at construction time 
+    public function init() {}
 
 }
 
@@ -25,8 +29,43 @@ abstract class Value_Modifier {
  */
 class Code_Value_Validator extends Value_Modifier {
 
-    function modify_value($value) {
+    protected $valid_code_values;
+    protected $case_sensitive;
+    protected $table;
+    protected $code_column;
+    protected $id_column;
 
+    function __construct($table, $case_sensitive = FALSE) {
+        $this->case_sensitive = $case_sensitive;
+        $this->table = $table;
+    }
+    
+    public function init() {
+        $db = $this->parent_value_processor->get_db();
+        $this->code_column = $this->parent_value_processor->get_code_column_for_table($this->table);
+        $this->id_column = $this->parent_value_processor->get_id_column_for_table($this->table);
+        $this->valid_code_values = array(); 
+        $result = $db->query("select " . $this->code_column . "," . $this->id_column . " from " . $this->table);
+        if ($result) {
+            for ($i = 0; $i < $result->num_rows; $i++) {
+                $row = $result->fetch_assoc();
+                if ( ! $this->case_sensitive ) $row[$this->code_column] = strtolower($row[$this->code_column]);
+                $this->valid_code_values[ $row[$this->code_column] ] = $row[$this->id_column];
+            }
+        } 
+        else {
+            throw new Exception("error reading from database: " . $db->error); 
+        }
+
+    }
+
+    function modify_value($value) {
+        if ( ! $this->case_sensitive ) $value = strtolower($value);
+        if ( isset($this->valid_code_values[$value]) ) {
+            return $this->valid_code_values[$value];
+        } else {
+            throw new Exception("Code not found in the '" . $this->table . "' table."); 
+        }
     }
 }
 
@@ -138,16 +177,20 @@ class Date_Validator_Formatter extends Value_Modifier {
         // handles case where data is fprmatted with dashes instead of slashes
         if (count($date_parts) == 1) // nothing was split
             $date_parts = explode('-', $value);
+        assert(count($date_parts) == 3, "Error with date formatting.");
         //check if we already have integers for months, otherwise replace the month names/abbreviations with 
         if ( ! intval($date_parts[$this->month_pos]) ) {
             $date_parts[1] = $this->get_month($date_parts[$this->month_pos]);
             if ( is_null($date_parts[$this->month_pos]) ) {
-                // TODO - return an error for an incorrect month
                 throw new Exception("Error with month.");
             }
         }
         // check that the month is valid
-        if ( count($date_parts) != 3 || ! checkdate($date_parts[$this->month_pos], $date_parts[$this->day_pos], $date_parts[$this->year_pos])  ){
+        if ( count($date_parts) != 3 || 
+            ! is_numeric($date_parts[$this->month_pos]) ||
+            ! is_numeric($date_parts[$this->day_pos]) ||
+            ! is_numeric($date_parts[$this->year_pos]) ||
+            ! checkdate($date_parts[$this->month_pos], $date_parts[$this->day_pos], $date_parts[$this->year_pos])  ){
             throw new Exception("Error with date formatting.");
         }
         else{
