@@ -1,10 +1,11 @@
 <?php
 include_once("value_processor.php");
 
+// TODO  enhance these to allow for map to determine input/output columns
 abstract class Data_Output {
     
     protected $inputs_handled_count;
-   
+ 
     function __construct() {
         
     } 
@@ -46,7 +47,7 @@ abstract class Data_Output {
 
 class Single_Column_Output extends Data_Output {
 
-    private $ouput_column_name;
+    private $output_column_name;
     private $value_processor;
     private $last_val;
 
@@ -69,7 +70,7 @@ class Single_Column_Output extends Data_Output {
         try {
             $this->last_val = $this->value_processor->process_value($value); 
 
-            // TODO - finally blocks are only in PHP 5.5+, this is a hackt get around it
+            // TODO - finally blocks are only in PHP 5.5+, this is a hack to get around it
             $this->finished_handling_an_input();
         } catch (Exception $ex) {
             // TODO - make this report an error to the user and store it in the upload history 
@@ -82,10 +83,62 @@ class Single_Column_Output extends Data_Output {
 
 }
 
-// TODO - finish this
+abstract class Column_Splitter_Output extends Data_Output {
+
+    private $output_column_names;
+    private $value_processors;
+    private $value_processor_count;
+    private $last_vals;
+
+    public function get_last_val(){
+        throw new Exception("Operation unsupported for column splitter.)");
+    }
+
+    function add_values_to_array(&$val_list) {
+        foreach ($this->last_vals as $value ) { 
+            array_push($val_list, $value);
+        }
+    }
+
+    function __construct($value_processors, $output_column_names){
+        $this->output_column_names = $output_column_names;
+        $this->value_processors = $value_processors;  
+        foreach($this->value_processors as $value_processor) {
+            // TODO - pass down table name from above
+            $value_processor->init("dummy_table_name_fixme");
+        }
+        $this->value_processor_count = count($this->value_processors);
+    }
+    
+    function number_of_inputs() { 
+        return $this->value_processor_count;
+    }
+
+    abstract function split_value($value);
+
+    function convert_to_output_format($value) {
+        try {
+            $curr_vals = $this->split_value($value);
+            foreach ( $curr_vals as $split_val ) {
+                $this->last_vals[$this->get_current_index()] = $this->value_processors[$this->get_current_index()]->process_value($split_val); 
+
+                // TODO - finally blocks are only in PHP 5.5+, this is a hack to get around it
+                $this->finished_handling_an_input();
+            }
+        } catch (Exception $ex) {
+           // TODO - make this report an error to the user and store it in the upload history 
+
+            // TODO - this appearing above and in this catch block is not a mistake, finally blocks not
+            // in until php5
+            $this->finished_handling_an_input();
+        }
+    }
+
+}
+
 class Column_Combiner_Output extends Data_Output {
 
-    private $ouput_column_name;
+    private $output_column_name;
     private $value_processors;
     private $value_processor_count;
     private $last_vals;

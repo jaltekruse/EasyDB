@@ -23,6 +23,33 @@ abstract class Value_Modifier {
 
 }
 
+
+class Boolean_Validator extends Value_Modifier {
+
+    function __construct() {
+         
+    }
+
+    function modify_value($value) {
+        switch (strtolower($value)) {
+            case "1": 
+            case "on":
+            case "t":
+            case "true":
+                return "1";
+                break;
+            case "0":
+            case "off":
+            case "f":
+            case "false":
+                return "0";
+                break;
+            default:
+                throw new Exception("Error with value formatting, expecting [1, t, true, on] for true or [0, f, false, off] for false.");
+        }
+    }
+}
+
 // TODO - implement a value creating code validator
 // will allow for situations like the filename handling in mbed, where I want to have a dependent
 // table to store the filenames, but I don't want to make users explicitly create a new entry in
