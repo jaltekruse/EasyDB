@@ -108,8 +108,12 @@ class Value_Processor {
      */
     function process_value($value){
         $new_value = $value;
+        // TODO - add loops for validators, currently unused
         foreach ($this->modifiers as $modifier) {
-           $new_value = $modifier->modify_value($new_value);
+            $new_value = $modifier->modify_value($new_value);
+            if ($modifier->stop_subsequent_valdiators()) {
+                break;
+            }
         }
         return $new_value;
     }

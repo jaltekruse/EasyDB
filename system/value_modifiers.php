@@ -21,6 +21,40 @@ abstract class Value_Modifier {
     // at construction time 
     public function init() {}
 
+    public function stop_subsequent_valdiators() {
+        return FALSE; 
+    }
+
+}
+
+/*
+ * Checks if a value is a blank string and returns as php NULL value if it is.
+ * As stripping spaces is a default modifier, this functionality is not included here, if
+ * you want whitespace to be considered a null value do not remove the default space stripping
+ * and use this modifier.
+ *
+ * This modifier does not throw an error if the value is not an empty string, assuming that
+ * there are other non-null values possible to be checked.
+ */
+class Null_Validator extends Value_Modifier {
+
+    private $last_val_null;
+
+    function modify_value($value) {
+        // as stripping spaces is default behavior, it is not included here 
+        if ($value == ""){
+            $this->last_val_null = TRUE;
+            return NULL;
+        } else {
+            $this->last_val_null = FALSE;
+            return $value;
+        }
+    } 
+
+    public function stop_subsequent_valdiators() {
+        return $this->last_val_null; 
+    }
+
 }
 
 
@@ -227,9 +261,33 @@ class Date_Validator_Formatter extends Value_Modifier {
             throw new Exception("Error with date formatting.");
         }
         else{
-            $date = $date_parts[$this->year_pos] . '-' . $date_parts[$this->month_pos] . '-' . $date_parts[$this->day_pos];
+            $date = $this->four_digit_year($date_parts[$this->year_pos]) .
+                '-' . $date_parts[$this->month_pos] . '-' . $date_parts[$this->day_pos];
         }
         return $date;
+    }
+
+    // be sure to update the year_cuttoff value in the future, this defines the
+    // point at which a 2 digit date is considered one in the 2000's vs 1900's
+    // right now the cutoff is 2060, so a year of 61, would be read as 1961
+    function four_digit_year($year){
+        $year_cuttoff = 60;
+        $year_val = intval($year);
+        if ( ! is_int($year_val)){
+            return $year;	
+        }
+        if ( strlen($year) == 4){
+            return $year;
+        }
+        else if (strlen($year) == 2){
+            if ( $year_val < $year_cuttoff)
+                return '20' . $year;
+            else
+                return '19' . $year;
+        }
+        else{// not a 2 digit or four digit year
+            return $year;
+        }
     }
 
     function get_month($month_name){
