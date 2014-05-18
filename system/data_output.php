@@ -8,6 +8,16 @@ abstract class Data_Output {
     protected $last_val;
     protected $output_column_name;
     protected $value_processor;
+    protected $main_output_table;
+    protected $main_table_primary_key_column;
+
+    public function set_main_output_table($table) {
+        $this->main_output_table = $table;
+    }
+
+    public function set_main_table_pk_column($column) {
+        $this->main_table_primary_key_column = $column;
+    }
  
     function number_of_inputs() { 
         return 1;
@@ -48,6 +58,16 @@ abstract class Data_Output {
         $val_list[$this->get_output_col_name()] = $this->get_lat_val();
     }
 
+    // optional paramerter allows this functionality to be re-used for reapeated columns, which
+    // need to make an intermediate table to check for a records that matches all of the repetions
+    function duplicate_check_sql($intermediate_table = "") {
+        $sql = "";
+        if ($intermediate_table != "") 
+            $sql = " " . $intermediate_table . ".";
+        $sql .= $this->output_column_name . " = " . $this->get_last_val() . " ";
+        return $sql;
+    }
+
     // this is going to mostly function the same as the can_take_more_input method
     // it will be overridden for Data_Output instances where multiple outputs are
     // allowed, but not a fixed amount
@@ -86,34 +106,46 @@ class Single_Column_Output extends Data_Output {
 }
 
 /*
- * Output for a list within a record. Generated either by looking at a series of columns (or series of split/combined columns) or
- * a single slit column by passing in the respective data outputs as input to this repeated column output.
+ * Output for a list within a record. Generated either by looking at a series of columns (or series of split
+ * combined columns) or a single slit column by passing in the respective data outputs as input to this repeated 
+ * column output.
+ * 
+ * For validation the passed data_outputs will be called repeatedly for a set number of 'repetition cycles', thus 
+ * if you are passing this repeated column N data outputs, it will pass values to each of them and expect that the 
+ * end of input will fall on the completion of the last data output, or a subsequent use of this data output. 
  *
- * For validation the passed data_outputs will be called repeatedly for a set number of 'repetition cycles', thus if you
- * are passing this repeated column N data outputs, it will pass values to each of them and expect that the end of input will
- * fall on the completion of the last data output, or a subsequent use of this data output. Example, repeated column passed a
- * splitter that produces two columns will expect the number of columns provided to it to be odd
+ * Example, repeated column passed a splitter that produces two columns will expect the number of columns provided 
+ * to it to be odd
  */
 class Repeated_Column_Output extends Data_Output {
 
-    private $child_table_name;
     private $data_outputs;
-    private $data_outputs_count;
+    private $data_output_count;
+    // number of total expected repetitions
     private $repetition_count;
+    // number of repetitions that have been completed
     private $current_repetition_count;
     // keeps track of progress inside of a single repetition
     private $current_data_output_index;
     private $last_vals;
+    private $relation_column;
+    private $output_table;
 
     /*
      * takes a list of data outputs to be used repeatedly. Second parameter is optional if the
      * number of repetitions is known. It default to 1000, anything close to this is stretching the
-     * usefulness of a relational database and this software for loading data
+     * usefulness of a relational database and this software for loading data.
+     *
+     * The relation column is used to hook up each of the child records that represents this repeated column
+     * to the parent record in both the duplicate check and insertion.
      */
-    function __construct($data_outputs, $repetition_count  = 1000){
+    function __construct($data_outputs, $repetition_count  = 1000, $relation_column,
+                         $output_table){
         $this->data_outputs = $data_outputs;
-        $this->data_ouputs_count = count($this->data_outputs);
+        $this->data_output_count = count($this->data_outputs);
         $this->repetition_count = $repetition_count;
+        $this->relation_column = $relation_column;
+        $this->output_table = $output_table;
     }
 
     function number_of_repetitions() { 
@@ -143,7 +175,7 @@ class Repeated_Column_Output extends Data_Output {
                 }
                 // not actually moving to new row yet, just re-using this functionality from the non-repeated case
                 $this->data_outputs[$this->current_data_output_index]->reset_for_new_row();
-                if ( $this->current_data_output_index >= $this->data_outputs_count) { 
+                if ( $this->current_data_output_index >= $this->data_output_count) { 
                     $this->current_data_output_index = 0;
                 }
                 $this->data_outputs[$this->current_data_output_index]->reset_for_new_row();
@@ -157,6 +189,22 @@ class Repeated_Column_Output extends Data_Output {
 
     function get_last_val(){
         throw new Exception("Unsupported operation");
+    }
+
+    function duplicate_check_sql() {
+        $pk_col = $this->main_table_primary_key_column;
+        $sql = "";
+        for ($i = 0; $i < $this->current_repetition_count; $i++) {
+            $temp_table = $this->output_table . $i;
+            $sql .= " INNER JOIN " . $this->output_table . " AS " . $temp_table . " ON " . $temp_table . 
+                "." . $pk_col . " = " . $this->main_output_table. "." . $pk_col . " ";
+            $column_checks = array();
+            foreach ($this->data_outputs as $data_output) { 
+                $column_checks[] = $data_output->duplicate_check_sql($temp_table);
+            }
+            $sql .= implode(' AND ', $column_checks);
+        }
+        return $sql;
     }
 
     function can_take_more_input() {
@@ -193,7 +241,7 @@ class Column_Splitter_Output extends Data_Output {
     private $delimiter;
 
     public function get_last_val(){
-        throw new Exception("Operation unsupported for column splitter.)");
+        throw new Exception("Operation unsupported for column splitter.");
     }
 
     function add_values_to_array(&$val_list) {
@@ -227,6 +275,16 @@ class Column_Splitter_Output extends Data_Output {
 
     function split_value($value) {
         return explode($this->delimiter, $value);
+    }
+
+    function duplicate_check_sql($intermediate_table = "") {
+        $sql = "";
+        for($i = 0; $i < $this->value_processor_count; $i++) {
+            if ($intermediate_table != "") 
+                $sql .= " " . $intermediate_table . ".";
+            $sql .= $this->value_processors[$i]->get_column() . " = " . $this->last_vals[$i] . " ";
+        }
+        return $sql;
     }
 
     function convert_to_output_format($value) {

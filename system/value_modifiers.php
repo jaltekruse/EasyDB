@@ -123,7 +123,6 @@ class Code_Value_Validator extends Value_Modifier {
         else {
             throw new Exception("error reading from database: " . $db->error); 
         }
-
     }
 
     function modify_value($value) {
