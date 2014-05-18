@@ -251,7 +251,7 @@ class Date_Validator_Formatter extends Value_Modifier {
         // but we will create a local reference variable to avoid type $this eveywhere
 
         foreach ($this->format_strings as $format) {
-            sscanf($value, $format, &$date_parts[0], &$date_parts[1], &$date_parts[2]);
+            sscanf($value, $format, $date_parts[0], $date_parts[1], $date_parts[2]);
             if ($date_parts[1] != '') break;
         }
 
