@@ -144,8 +144,9 @@ class Unit_Tests {
         $data_output = new Column_Combiner_Output($val_processors, "date_time");
 
         $record_processor = new Record_Processor(array('data_outputs' => array($data_output), 'output_table' => 'unused','primary_key_column' => 'unused'));
-        $record_processor->process_row(array("22/3/2012", "2:30"));
-        $this->assertEquals("2012-3-22 2:30", $record_processor->get_outputs()[0]->get_last_val());
+		$record_processor->process_row(array("22/3/2012", "2:30"));
+		$outputs = $record_processor->get_outputs();
+        $this->assertEquals("2012-3-22 2:30", $outputs[0]->get_last_val());
         $this->assertEquals(array("2012-3-22 2:30"), $record_processor->output_to_array());
     }
 
@@ -173,9 +174,10 @@ class Unit_Tests {
             $this->assertEquals("Unexpected extra input at the end of row, starting at 'extra_column'", $ex->getMessage(), "Recieved wrong error message.");
         }
         $record_processor->process_row(array("2:30", "4:30", "22/3/2012"));
-        $this->assertEquals("2:30", $record_processor->get_outputs()[0]->get_last_val());
-        $this->assertEquals("4:30", $record_processor->get_outputs()[1]->get_last_val());
-        $this->assertEquals("2012-3-22", $record_processor->get_outputs()[2]->get_last_val());
+		$outputs = $record_processor->get_outputs();
+        $this->assertEquals("2:30", $outputs[0]->get_last_val());
+        $this->assertEquals("4:30", $outputs[1]->get_last_val());
+        $this->assertEquals("2012-3-22", $outputs[2]->get_last_val());
         $this->assertEquals(array("2:30", "4:30", "2012-3-22"), $record_processor->output_to_array());
     }
 

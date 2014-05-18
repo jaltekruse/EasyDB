@@ -65,7 +65,7 @@ class Value_Processor {
      */
     function __construct(&$db, $user_config, $parameters) {
         if ( ! isset($parameters['strip_whitespace'] )) $parameters['strip_whitespace'] = Strip_Whitespace::BOTH;
-        assert(isset($parameters['column']), "Column must be specified for a Value_Processor)");
+        assert_true(isset($parameters['column']), "Column must be specified for a Value_Processor)");
         $this->column = $parameters['column'];
         $this->db = $db;
         $this->user_config = $user_config;

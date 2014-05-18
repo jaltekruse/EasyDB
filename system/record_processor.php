@@ -1,6 +1,12 @@
 <?php
 include_once("data_output.php");
 
+function assert_true($cond, $message = "No message specified."){
+	if ( ! $cond ) {
+		assert(FALSE);
+		echo $message;
+	}	
+}
 class Record_Processor {
 
     private $data_outputs;
@@ -27,9 +33,9 @@ class Record_Processor {
       *     be applied to the whole sheet to save the time of copying it into each row manually
       */
     function __construct($parameters){
-        assert( isset($parameters['data_outputs']), "Must supply data outputs for Record_Processor.");
-        assert( isset($parameters['output_table']), "Must supply output table for Record_Processor.");
-        assert( isset($parameters['primary_key_column']), "Must supply primary key column for Record_Processor.");
+        assert_true( isset($parameters['data_outputs']), "Must supply data outputs for Record_Processor.");
+        assert_true( isset($parameters['output_table']), "Must supply output table for Record_Processor.");
+        assert_true( isset($parameters['primary_key_column']), "Must supply primary key column for Record_Processor.");
         $this->output_table = $parameters['output_table'];
         $this->data_outputs = $parameters['data_outputs'];
         $this->data_outputs_count = count($this->data_outputs);

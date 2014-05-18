@@ -184,7 +184,7 @@ class Time_Validator_Formatter extends Value_Modifier {
 
     function modify_value($value) {
         $time_parts = explode(":", $value);
-        assert(count($time_parts) == 2, "Error with formatting of a time value.");
+        assert_true(count($time_parts) == 2, "Error with formatting of a time value.");
         $min = $time_parts[1];
         $hour = $time_parts[0];
         if (  ! is_numeric($min)  || ! is_numeric($hour) || 
@@ -232,7 +232,7 @@ class Date_Validator_Formatter extends Value_Modifier {
             $this->year_pos = array_search(Date_Parts::YEAR, $date_parts_order);
             $this->month_pos = array_search(Date_Parts::MONTH, $date_parts_order);
             $this->day_pos = array_search(Date_Parts::DAY, $date_parts_order);
-            assert( $this->year_pos >= 0 && $this->month_pos >= 0 && $this->day_pos >= 0);
+            assert_true( $this->year_pos >= 0 && $this->month_pos >= 0 && $this->day_pos >= 0);
         }
     }
 
@@ -243,7 +243,7 @@ class Date_Validator_Formatter extends Value_Modifier {
         // handles case where data is fprmatted with dashes instead of slashes
         if (count($date_parts) == 1) // nothing was split
             $date_parts = explode('-', $value);
-        assert(count($date_parts) == 3, "Error with date formatting.");
+        assert_true(count($date_parts) == 3, "Error with date formatting.");
         //check if we already have integers for months, otherwise replace the month names/abbreviations with 
         if ( ! intval($date_parts[$this->month_pos]) ) {
             $date_parts[1] = $this->get_month($date_parts[$this->month_pos]);
