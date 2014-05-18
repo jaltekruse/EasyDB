@@ -213,6 +213,8 @@ class Date_Validator_Formatter extends Value_Modifier {
     private $year_pos;
     private $month_pos;
     private $day_pos;
+    private $date_parts;
+    private $format_strings;
 
     /*
      * Construts a date validator/formatter.
@@ -234,28 +236,37 @@ class Date_Validator_Formatter extends Value_Modifier {
             $this->day_pos = array_search(Date_Parts::DAY, $date_parts_order);
             assert_true( $this->year_pos >= 0 && $this->month_pos >= 0 && $this->day_pos >= 0);
         }
+        $format = array();
+        $format[$this->year_pos] = "%d";
+        $format[$this->month_pos] = "%[0-9a-zA-Z]";
+        $format[$this->day_pos] = "%d";
+        $this->format_strings[] = implode("-", $format);
+        $this->format_strings[] = implode("/", $format);
+        $date_parts = array();
     }
 
     function modify_value($value) {
         // extract the date and format it for database insertion
-        $date_parts = explode("/", $value);
+        // we use a class variable to store the actual data to prevent creating a bunch of arrays
+        // but we will create a local reference variable to avoid type $this eveywhere
 
-        // handles case where data is fprmatted with dashes instead of slashes
-        if (count($date_parts) == 1) // nothing was split
-            $date_parts = explode('-', $value);
-        assert_true(count($date_parts) == 3, "Error with date formatting.");
+        foreach ($this->format_strings as $format) {
+            sscanf($value, $format, &$date_parts[0], &$date_parts[1], &$date_parts[2]);
+            if ($date_parts[1] != '') break;
+        }
+
         //check if we already have integers for months, otherwise replace the month names/abbreviations with 
-        if ( ! intval($date_parts[$this->month_pos]) ) {
-            $date_parts[1] = $this->get_month($date_parts[$this->month_pos]);
+        if ( 0 + $date_parts[$this->month_pos] == 0 ) {
+            $date_parts[$this->month_pos] = $this->get_month($date_parts[$this->month_pos]);
             if ( is_null($date_parts[$this->month_pos]) ) {
                 throw new Exception("Error with month.");
             }
         }
         // check that the month is valid
-        if ( count($date_parts) != 3 || 
-            ! is_numeric($date_parts[$this->month_pos]) ||
-            ! is_numeric($date_parts[$this->day_pos]) ||
-            ! is_numeric($date_parts[$this->year_pos]) ||
+        if ( 
+            0 + $date_parts[$this->month_pos] == 0 ||
+            0 + $date_parts[$this->day_pos] == 0 ||
+            0 + $date_parts[$this->year_pos] == 0 ||
             ! checkdate($date_parts[$this->month_pos], $date_parts[$this->day_pos], $date_parts[$this->year_pos])  ){
             throw new Exception("Error with date formatting.");
         }
@@ -271,9 +282,9 @@ class Date_Validator_Formatter extends Value_Modifier {
     // right now the cutoff is 2060, so a year of 61, would be read as 1961
     function four_digit_year($year){
         $year_cuttoff = 60;
-        $year_val = intval($year);
+        $year_val = 0 + $year;
         if ( ! is_int($year_val)){
-            return $year;	
+            return $year;   
         }
         if ( strlen($year) == 4){
             return $year;
@@ -292,19 +303,19 @@ class Date_Validator_Formatter extends Value_Modifier {
     function get_month($month_name){
         // extra cases are for portuguese month names used in some datasets
         switch(strtolower($month_name)){
-            case 'jan': 		return 1;
-            case 'feb':     	return 2;
-            case 'mar': 		return 3;
+            case 'jan':         return 1;
+            case 'feb':         return 2;
+            case 'mar':         return 3;
             case 'apr':         return 4;
-            case 'may':     	return 5;
-            case 'jun':		    return 6;
-            case 'jul':		    return 7;
+            case 'may':         return 5;
+            case 'jun':         return 6;
+            case 'jul':         return 7;
             case 'aug':         return 8;
-            case 'sep':     	return 9;
+            case 'sep':         return 9;
             case 'oct':         return 10;
-            case 'nov': 		return 11;
-            case 'dec':     	return 12;
-            default: 	        return null; 
+            case 'nov':         return 11;
+            case 'dec':         return 12;
+            default:            return null; 
         }
     }
 
