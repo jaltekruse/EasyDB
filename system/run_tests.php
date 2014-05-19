@@ -242,7 +242,7 @@ class Unit_Tests {
             $vp->process_value("22-MAZ-2012");
             throw new Exception("Should not get here, should have errored into catch block.");
         } catch (Exception $ex) {
-            $this->assertEquals( "Error with month.", $ex->getMessage(), "Caught the wrong error.");
+            $this->assertEquals( "Error with date formatting.", $ex->getMessage(), "Caught the wrong error.");
         }
 
         try {

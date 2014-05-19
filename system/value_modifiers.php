@@ -259,7 +259,7 @@ class Date_Validator_Formatter extends Value_Modifier {
         if ( 0 + $date_parts[$this->month_pos] == 0 ) {
             $date_parts[$this->month_pos] = $this->get_month($date_parts[$this->month_pos]);
             if ( is_null($date_parts[$this->month_pos]) ) {
-                throw new Exception("Error with month.");
+                throw new Exception("Error with date formatting.");
             }
         }
         // check that the month is valid
