@@ -79,9 +79,9 @@ class Unit_Tests {
 
     protected function assertEquals($expected, $actual, $message = "") {
         if ($expected != $actual) {
-            echo "Error: expected value '";
+            echo "Error: expected value <br>'";
             print_r($expected);
-            echo "' but received '";
+            echo "'<br> but received <br>'";
             print_r($actual);
             echo "'" . ($message != "" ? " - " . $message : "");
         }
@@ -212,15 +212,15 @@ class Unit_Tests {
         $db = 1;
         $processor_config = $this->default_processor_config;
         $vp = new Value_Processor($db, $this->user_config, $processor_config);
-        $this->assertEquals( "123" == $vp->process_value("  123  "), "problem stripping whitespace.");
+        $this->assertEquals( "123", $vp->process_value("  123  "), "problem stripping whitespace.");
 
         $processor_config['strip_whitespace'] = Strip_Whitespace::BEFORE;
         $vp = new Value_Processor($db, $this->user_config, $processor_config);
-        $this->assertEquals( "123  " == $vp->process_value("  123  "), "problem stripping whitespace.");
+        $this->assertEquals( "123  ", $vp->process_value("  123  "), "problem stripping whitespace.");
 
         $processor_config['strip_whitespace'] = Strip_Whitespace::AFTER;
         $vp = new Value_Processor($db, $this->user_config, $processor_config);
-        $this->assertEquals( "  123" == $vp->process_value("  123  "), "problem stripping whitespace.");
+        $this->assertEquals( "  123", $vp->process_value("  123  "), "problem stripping whitespace.");
     }
 
     function test_date_validator() {

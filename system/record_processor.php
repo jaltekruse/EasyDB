@@ -9,7 +9,16 @@ function assert_true($cond, $message = "No message specified."){
 }
 class Record_Processor {
 
+    // defines the sequence of outputs to be used, current interface uses numerical positions
+    // of the columns in the input data set. Will be adding interface later to allow matching
+    // column names to different value processors (which are nested in data outputs)
     private $data_outputs;
+
+    // to allow for efficient processing into sql queries, additional references to the data
+    // outputs are stored on creation of this Record_Processor
+    private $repeated_outputs;
+    private $non_repeated_outputs;
+    
     private $data_outputs_count;
     private $output_table;
     private $primary_key_column;
@@ -40,9 +49,17 @@ class Record_Processor {
         $this->data_outputs = $parameters['data_outputs'];
         $this->data_outputs_count = count($this->data_outputs);
         $this->primary_key_column = $parameters['primary_key_column']; 
+        $this->repeated_outputs = array();
+        $this->non_repeated_outputs = array();
         foreach ($this->data_outputs as $data_output) {
             $data_output->set_main_output_table($this->output_table);
             $data_output->set_main_table_pk_column($this->primary_key_column);
+            if ($data_output instanceof Repeated_Column_Output) {
+                $this->repeated_outputs[] = $data_output; 
+            }
+            else {
+                $this->non_repeated_outputs[] = $data_output;
+            }
         }
     }
     
@@ -76,6 +93,9 @@ class Record_Processor {
         }
     }
 
+    //=============================================
+    // TODO - PREPARED STATEMENTS
+    // ============================================
     function generate_duplicate_check() {
         $sql = "select * from " . $this->output_table . ' ';
         $repeated_output_checks = array();
@@ -84,22 +104,62 @@ class Record_Processor {
             if ($data_output instanceof Repeated_Column_Output) {
                 $repeated_output_checks[] = $data_output->duplicate_check_sql();
             } else {
-                $standard_column_checks[] = $data_output->duplicate_check_sql();
+                // passing table name to get rid of 'column ambiguity' errors
+                $standard_column_checks[] = $data_output->duplicate_check_sql($this->output_table);
             }
         }
         $sql .= implode(' ', $repeated_output_checks);
-        $sql .= implode(' AND ', $standard_column_checks);
+        $sql .= ' WHERE ' . implode(' AND ', $standard_column_checks);
         return $sql;
     }
 
-    function insert_record(){
-        
+    function insert_main_record_sql(){
+        $sql_statements = array();
+        $values = array();
+        foreach ($this->non_repeated_outputs as $data_output) {
+            $data_output->add_values_to_assoc_array($values);
+        }
+        return Record_Processor::insert_sql_based_on_assoc_array($values, $this->output_table);
+    }
+
+    /*
+     * Get the SQL required to insert the current record. The return of the function is
+     * an array of statements to execute, one for the main record and another for each
+     * of the child rows to insert.
+     */
+    function insert_child_record_sql($last_insert_id){
+        $sql_statements = array();
+        foreach ($this->repeated_outputs as $data_output) {
+            $sql_statements = array_merge($sql_statements, $data_output->generate_insert_sql($last_insert_id));
+        }
+        return $sql_statements;
+    }
+
+    public static function insert_sql_based_on_assoc_array($values, $table) {
+        $quoted_vals = array();
+        foreach ($values as $key=>$val) {
+            if (is_null($val))
+                $quoted_vals[$key] = "NULL";
+            else
+                $quoted_vals[$key] = "'" . $val . "'";
+        }
+        $sql = "insert into " . $table . " (`" . implode("`,`", array_keys($values)) . "`) VALUES ";
+        $sql .= "(" . implode(",", $quoted_vals) . ")";
+        return $sql;
     }
 
     function output_to_array() {
         $output = array();
         foreach ($this->data_outputs as $data_output) {
             $data_output->add_values_to_array($output);
+        }
+        return $output;
+    }
+
+    function output_to_assoc_array(){
+        $output = array();
+        foreach ($this->data_outputs as $data_output) {
+            $data_output->add_values_to_assoc_array($output);
         }
         return $output;
     }

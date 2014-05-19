@@ -54,8 +54,21 @@ abstract class Data_Output {
         $val_list[] = $this->last_val;
     }
 
-    function add_values_to_assoc_array($val_list) {
-        $val_list[$this->get_output_col_name()] = $this->get_lat_val();
+    function add_values_to_assoc_array(&$val_list) {
+        $val_list[$this->get_output_col_name()] = $this->get_last_val();
+    }
+
+
+    public function set_last_val($val) {
+        $this->last_val = $val[$this->output_column_name];
+    }
+
+    function duplicate_check_sql_repeated($intermediate_table = "") {
+        $sql = "";
+        if ($intermediate_table != "") 
+            $sql = " " . $intermediate_table . ".";
+        $sql .= $this->output_column_name . " = '" . $this->get_last_val() . "' ";
+        return $sql;
     }
 
     // optional paramerter allows this functionality to be re-used for reapeated columns, which
@@ -64,7 +77,7 @@ abstract class Data_Output {
         $sql = "";
         if ($intermediate_table != "") 
             $sql = " " . $intermediate_table . ".";
-        $sql .= $this->output_column_name . " = " . $this->get_last_val() . " ";
+        $sql .= $this->output_column_name . " = '" . $this->get_last_val() . "' ";
         return $sql;
     }
 
@@ -87,6 +100,10 @@ class Single_Column_Output extends Data_Output {
 
     function get_last_val() {
         return $this->last_val;
+    }
+
+    function get_output_col_name(){ 
+        return $this->output_column_name; 
     }
  
     function convert_to_output_format($value) {
@@ -127,6 +144,7 @@ class Repeated_Column_Output extends Data_Output {
     private $current_repetition_count;
     // keeps track of progress inside of a single repetition
     private $current_data_output_index;
+    // 2d array, inner arrays are associative one for each repetition
     private $last_vals;
     private $relation_column;
     private $output_table;
@@ -146,6 +164,10 @@ class Repeated_Column_Output extends Data_Output {
         $this->repetition_count = $repetition_count;
         $this->relation_column = $relation_column;
         $this->output_table = $output_table;
+        $this->last_vals = array();
+        for ($i = 0; $i < $this->repetition_count; $i++){
+            $this->last_vals[$i] = array();     
+        }
     }
 
     function number_of_repetitions() { 
@@ -155,7 +177,6 @@ class Repeated_Column_Output extends Data_Output {
     public function reset_for_new_row() {
         $this->current_data_output_index = 0;
         $this->current_repetition_count = 0;
-        $this->last_vals = array();
         $this->data_outputs[0]->reset_for_new_row();
     }   
     
@@ -168,7 +189,8 @@ class Repeated_Column_Output extends Data_Output {
             $this->data_outputs[$this->current_data_output_index]->convert_to_output_format($value);
 
             if ( ! $this->data_outputs[$this->current_data_output_index]->can_take_more_input()) {
-                $this->data_outputs[$this->current_data_output_index]->add_values_to_array($this->last_vals);
+                $this->data_outputs[$this->current_data_output_index]->
+                    add_values_to_assoc_array($this->last_vals[$this->current_repetition_count]);
                 $this->current_repetition_count++;
                 if ($this->current_repetition_count > $this->repetition_count) {
                     return; 
@@ -200,11 +222,24 @@ class Repeated_Column_Output extends Data_Output {
                 "." . $pk_col . " = " . $this->main_output_table. "." . $pk_col . " ";
             $column_checks = array();
             foreach ($this->data_outputs as $data_output) { 
-                $column_checks[] = $data_output->duplicate_check_sql($temp_table);
+                $data_output->set_last_val($this->last_vals[$i]);
+                $column_checks[] = $data_output->duplicate_check_sql_repeated($temp_table);
             }
-            $sql .= implode(' AND ', $column_checks);
+            $sql .= " AND " . implode(" AND ", $column_checks);
         }
         return $sql;
+    }
+
+    function generate_insert_sql($last_insert_id) {
+        $sql_statements = array();
+        $last_vals;
+        for ($i = 0; $i < $this->current_repetition_count; $i++) { 
+            $last_vals = $this->last_vals[$i];
+            $last_vals[$this->main_table_primary_key_column] = $last_insert_id;
+            $sql_statements[] = Record_Processor::insert_sql_based_on_assoc_array(
+                $last_vals, $this->output_table);
+        }
+        return $sql_statements;
     }
 
     function can_take_more_input() {
@@ -216,12 +251,14 @@ class Repeated_Column_Output extends Data_Output {
 
     function add_values_to_array(&$val_list) {
         foreach ($this->last_vals as $val) {
-            $val_list[] = $val;
+            foreach ($val as $sub_val){
+                $val_list[] = $sub_val;
+            }
         }
     }
 
-    function add_values_to_assoc_array($val_list) {
-        $val_list[$this->get_output_col_name()] = $this->get_lat_val();
+    function add_values_to_assoc_array(&$val_list) {
+        $val_list[$this->get_output_col_name()] = $this->get_last_val();
     }
 
     // this is going to mostly function the same as the can_take_more_input method
@@ -250,10 +287,10 @@ class Column_Splitter_Output extends Data_Output {
         }
     }
 
-    function add_values_to_assoc_array($val_list) {
+    function add_values_to_assoc_array(&$val_list) {
         $i = 0;
         foreach ($this->last_vals as $value ) { 
-            $val_list[$output_column_names[$i]] = $value;
+            $val_list[$this->output_column_names[$i]] = $value;
             $i++;
         }
     }
@@ -277,14 +314,42 @@ class Column_Splitter_Output extends Data_Output {
         return explode($this->delimiter, $value);
     }
 
-    function duplicate_check_sql($intermediate_table = "") {
-        $sql = "";
+    public function set_last_val($val) {
+        $this->last_vals = $val;
+    }
+
+    function duplicate_check_sql_repeated($intermediate_table = "") {
+        $sql_wheres = array();
         for($i = 0; $i < $this->value_processor_count; $i++) {
             if ($intermediate_table != "") 
-                $sql .= " " . $intermediate_table . ".";
-            $sql .= $this->value_processors[$i]->get_column() . " = " . $this->last_vals[$i] . " ";
+                $sql = " " . $intermediate_table . ".";
+            else
+                $sql = "";
+            if ( is_null($this->last_vals[$this->value_processors[$i]->get_column()]) )
+                $value = "NULL";
+            else
+                $value = "'" . $this->last_vals[$this->value_processors[$i]->get_column()] . "'"; 
+            $sql .= $this->value_processors[$i]->get_column() . " = " . $value . " ";
+            $sql_wheres[] = $sql;
         }
-        return $sql;
+        return implode(" AND ", $sql_wheres);
+    }
+
+    function duplicate_check_sql($intermediate_table = "") {
+        $sql_wheres = array();
+        for($i = 0; $i < $this->value_processor_count; $i++) {
+            if ($intermediate_table != "") 
+                $sql = " " . $intermediate_table . ".";
+            else
+                $sql = "";
+            if ( is_null($this->last_vals[$i]) )
+                $value = "NULL";
+            else
+                $value = "'" . $this->last_vals[$i] . "'"; 
+            $sql .= $this->value_processors[$i]->get_column() . " = " . $value . " ";
+            $sql_wheres[] = $sql;
+        }
+        return implode(" AND ", $sql_wheres);
     }
 
     function convert_to_output_format($value) {
@@ -328,8 +393,8 @@ class Column_Combiner_Output extends Data_Output {
     }
 
 
-    function add_values_to_assoc_array($val_list) {
-        $val_list[$output_column_name] = $this->get_last_value();
+    function add_values_to_assoc_array(&$val_list) {
+        $val_list[$this->output_column_name] = $this->get_last_val();
     }
 
     function add_values_to_array(&$val_list) {
