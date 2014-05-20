@@ -78,6 +78,9 @@ class Value_Processor {
             case Strip_Whitespace::NONE: break; 
             default: throw new Exception("Invalid whitespace handling provided.");
         }
+        // add a utf8 decoder to all columns
+        $this->modifiers[] = new UTF8_Decoder();
+
         if ( isset($parameters['modifiers'])){
             $this->modifiers = array_merge($this->modifiers, $parameters['modifiers']);
         }

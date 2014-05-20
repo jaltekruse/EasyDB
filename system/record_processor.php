@@ -105,7 +105,9 @@ class Record_Processor {
                 $repeated_output_checks[] = $data_output->duplicate_check_sql(NULL);
             } else {
                 // passing table name to get rid of 'column ambiguity' errors
-                $standard_column_checks[] = $data_output->duplicate_check_sql($this->output_table);
+                if ( ! $data_output->ignore_in_duplicate_check()) {
+                    $standard_column_checks[] = $data_output->duplicate_check_sql($this->output_table);
+                }
             }
         }
         $sql .= implode(' ', $repeated_output_checks);

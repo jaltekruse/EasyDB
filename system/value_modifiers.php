@@ -27,6 +27,13 @@ abstract class Value_Modifier {
 
 }
 
+class UTF8_Decoder extends Value_Modifier {
+
+    function modify_value($value) {
+        return utf8_decode($value);
+    }
+}
+
 /*
  * Checks if a value is a blank string and returns as php NULL value if it is.
  * As stripping spaces is a default modifier, this functionality is not included here, if
@@ -112,7 +119,8 @@ class Code_Value_Validator extends Value_Modifier {
         $this->code_column = $this->parent_value_processor->get_code_column_for_table($this->table);
         $this->id_column = $this->parent_value_processor->get_id_column_for_table($this->table);
         $this->valid_code_values = array(); 
-        $result = $db->query("select " . $this->code_column . "," . $this->id_column . " from " . $this->table);
+        $query = "select " . $this->code_column . "," . $this->id_column . " from " . $this->table;
+        $result = $db->query($query);
         if ($result) {
             for ($i = 0; $i < $result->num_rows; $i++) {
                 $row = $result->fetch_assoc();
@@ -121,6 +129,7 @@ class Code_Value_Validator extends Value_Modifier {
             }
         } 
         else {
+            echo $query;
             throw new Exception("error reading from database: " . $db->error); 
         }
     }
@@ -133,6 +142,19 @@ class Code_Value_Validator extends Value_Modifier {
             throw new Exception("Code not found in the '" . $this->table . "' table."); 
         }
     }
+}
+
+class Unique_Code_Enforcer extends Code_Value_Validator {
+
+    function modify_value($value) {
+        if ( ! $this->case_sensitive ) $value = strtolower($value);
+        if ( isset($this->valid_code_values[$value]) ) {
+            throw new Exception("Code already appears in the '" . $this->table . "' table."); 
+        } else {
+            return $value;
+        }
+    }
+
 }
 
 class Enum_Validator extends Value_Modifier {

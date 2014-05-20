@@ -34,10 +34,12 @@ foreach( get_declared_classes() as $class ) {
 
 // TODO - user config is available in the global namesapce right now, may want to move it
 $old_error_handler = set_error_handler("myErrorHandler");
+$unit_test_classes[0]->init_tests();
 foreach ($unit_test_classes as $unit_tests) {
     $unit_test_methods = get_class_methods($unit_tests);
     foreach ($unit_test_methods as $test) {
-        if ( strpos($test, 'test') !== FALSE ){
+        // tests must start with the word test
+        if ( strpos($test, 'test') === 0 ){
             echo "Running test: " . $test . "<br>\n"; 
             try {
                 $unit_tests->$test();
@@ -87,12 +89,140 @@ class Unit_Tests {
         }
     }
 
+    function init_tests() {
+        $db = $this->user_config->get_database_connection();
+        // add some temporary tables to be used in the tests, they are removed in the test_clenaup method
+        $drop_table_1 = "DROP TABLE `mbed`.`animals_easy_db_test_temp`";
+        $drop_table_2 = "DROP TABLE `mbed`.`age_categories_easy_db_test_temp`";
+        $create_table = 
+            "CREATE TABLE IF NOT EXISTS `mbed`.`age_categories_easy_db_test_temp` (
+              `age_category_id` INT NOT NULL AUTO_INCREMENT,
+              `age_category` VARCHAR(45) NOT NULL,
+              `date_added` VARCHAR(45) NOT NULL,
+              PRIMARY KEY (`age_category_id`),
+              UNIQUE INDEX `age_category_UNIQUE` (`age_category` ASC),
+              UNIQUE INDEX `age_category_id_UNIQUE` (`age_category_id` ASC))
+            ENGINE = InnoDB";
+        $create_table_2 = 
+            "CREATE TABLE IF NOT EXISTS `mbed`.`animals_easy_db_test_temp` (
+              `animal_id` INT NOT NULL AUTO_INCREMENT,
+              `birthday` DATETIME NULL,
+              `is_male` TINYINT(1) NULL,
+              `age_category_id` INT NULL,
+              `animal_code` VARCHAR(45) NOT NULL,
+              PRIMARY KEY (`animal_id`),
+              INDEX `fk_animals_age_categories1` (`age_category_id` ASC),
+              UNIQUE INDEX `animal_code_UNIQUE` (`animal_code` ASC),
+              CONSTRAINT `fk_animals_age_categories2`
+                FOREIGN KEY (`age_category_id`)
+                REFERENCES `mbed`.`age_categories_easy_db_test_temp` (`age_category_id`)
+                ON DELETE NO ACTION
+                ON UPDATE NO ACTION)
+            ENGINE = InnoDB";
+        $result = $db->query($drop_table_1);
+        if ( ! $result ) throw new Exception("Error dropping test table from database: " . $db->error);
+        $result = $db->query($drop_table_2);
+        if ( ! $result ) throw new Exception("Error dropping test table from database: " . $db->error);
+        $result = $db->query($create_table);
+        if ( ! $result ) throw new Exception("Error adding test table to database: " . $db->error);
+        $result = $db->query($create_table_2);
+        if ( ! $result ) throw new Exception("Error adding test table to database: " . $db->error);
+    }
+
+    function test_duplicate_check(){
+
+    }
+
+    function test_insert() {
+        $db = $this->user_config->get_database_connection();
+        $user_config = $this->user_config;
+
+        $result = $db->query("delete from animals_easy_db_test_temp where animal_code = 'jimmy'");
+        if ( ! $result ) echo 'Error with pre-test record deletion :' . $db->error . '<br>';
+
+        $result = $db->query("delete from age_categories_easy_db_test_temp where age_category = 'elderly'");
+        if ( ! $result ) echo 'Error with pre-test record deletion :' . $db->error . '<br>';
+
+        // create an entry in the age categories table
+        $data_outputs = array(
+            // date time
+            new Single_Column_Output( new Value_Processor($db, $user_config, 
+                    array( 'column' => 'age_category', 'modifiers' => array(
+                        new Null_Validator(), new Unique_Code_Enforcer('age_categories_easy_db_test_temp')))),
+                'age_category', FALSE),
+            new Single_Column_Output( new Value_Processor($db, $user_config, 
+                    array( 'column' => 'date_time', 'modifiers' => array(new Date_Validator_Formatter()))),
+                'date_added', FALSE)
+        );
+
+        $age_category_processor = new Record_Processor(array('data_outputs' => $data_outputs,
+            'output_table' => 'age_categories_easy_db_test_temp', 'primary_key_column' => 'age_category_id'));
+        $test_data = "[\"elderly\", \"5-5-2005\"]";
+        $test_data_array = json_decode($test_data, true /* parse into associative arrays*/);
+        $age_category_processor->process_row($test_data_array);
+        $result = $db->query($age_category_processor->insert_main_record_sql());
+        if ( ! $result ) echo 'Error with insert:' . $db->error() . '<br>';
+
+        $result = $db->query("SELECT * from age_categories_easy_db_test_temp where age_category = 'elderly'");
+        if ( ! $result ) echo 'Error with insert check:' . $db->error() . '<br>';
+        else {
+            $this->assertEquals(1, $result->num_rows, "Row was not inserted, or the unique column was not enforced.");
+        }
+        
+        // Now try to insert a record that uses this for entry for a code
+
+        $animal_processor = $this->animal_processor($db, $this->user_config);
+        $test_data = "[\"5-5-2005\", \" T \", \"elderly\", \"jimmy\"]";
+        $test_data_array = json_decode($test_data, true /* parse into associative arrays*/);
+        $animal_processor->process_row($test_data_array);
+        $result = $db->query($animal_processor->insert_main_record_sql());
+        if ( ! $result ) echo 'Error with insert:' . $db->error . '<br>';
+
+        $result = $db->query("SELECT * from animals_easy_db_test_temp where animal_code = 'jimmy'");
+        if ( ! $result ) echo 'Error with insert check:' . $db->error . '<br>';
+        else {
+            $this->assertEquals(1, $result->num_rows, "Row was not inserted, or the unique column was not enforced.");
+        }
+        // test unique enforceer
+        // re-create the processor so the in memory-cache of code values is refreshed
+        $animal_processor = $this->animal_processor($db, $this->user_config);
+        try {
+            $animal_processor->process_row($test_data_array);
+        } catch (Exception $ex) {
+            $this->assertEquals("Exception processing value: Code already appears in the 'animals_easy_db_test_temp' table.", 
+                $ex->getMessage()); 
+        }
+    }
+
+    function animal_processor($db, $user_config) {
+        $data_outputs = array(
+            // date time
+            new Single_Column_Output( new Value_Processor($db, $user_config, 
+                    array( 'column' => 'birthday', 'modifiers' => array(new Date_Validator_Formatter()))),
+                'birthday', FALSE),
+            new Single_Column_Output( new Value_Processor($db, $user_config, 
+                    array( 'column' => 'is_male', 'modifiers' => array(new Boolean_Validator()))),
+                'is_male', FALSE),
+            new Single_Column_Output( new Value_Processor($db, $user_config, 
+                    array( 'column' => 'age_category_id', 'modifiers' => array(
+                        new Null_Validator(), new Code_Value_Validator('age_categories_easy_db_test_temp')))),
+                'age_category_id', FALSE),
+            new Single_Column_Output( new Value_Processor($db, $user_config, 
+                    array( 'column' => 'animal_code', 'modifiers' => array(
+                        new Unique_Code_Enforcer('animals_easy_db_test_temp')))),
+                'animal_code', FALSE)
+        );
+
+        return new Record_Processor(array('data_outputs' => $data_outputs,
+            'output_table' => 'animals_easy_db_test_temp', 'primary_key_column' => 'animal_id'));
+    }
+
     function test_repeated_column() {
         $db = 1;
         $processor_config = $this->default_processor_config;
         $processor_config['modifiers'] = array(new Date_Validator_Formatter());
         $data_output = new Repeated_Column_Output( array( new Single_Column_Output( 
-            new Value_Processor($db, $this->user_config, $processor_config), "time")), 3, 'foreign_key_column', 'table') ;
+            new Value_Processor($db, $this->user_config, $processor_config), "time", FALSE)), 3, 'foreign_key_column', 'table', TRUE) ;
         $record_processor = new Record_Processor(array('data_outputs' => array($data_output), 'output_table' => 'unused','primary_key_column' => 'unused'));
         $record_processor->process_row(array("22/3/2012", "22/3/2012", "22/3/2012"));
         $this->assertEquals($record_processor->output_to_array(), array("2012-3-22", "2012-3-22", "2012-3-22"));
@@ -108,9 +238,9 @@ class Unit_Tests {
         $processor_config['modifiers'] = array(new Time_Validator_Formatter());
         $val_processors[] = new Value_Processor($db, $this->user_config, $processor_config);
         
-        $data_output = new Column_Combiner_Output($val_processors, "date_time");
+        $data_output = new Column_Combiner_Output($val_processors, "date_time", FALSE);
 
-        $data_output = new Repeated_Column_Output( array( $data_output), 2, 'foreign_key_column', 'table');
+        $data_output = new Repeated_Column_Output( array( $data_output), 2, 'foreign_key_column', 'table', FALSE);
         $record_processor = new Record_Processor(array('data_outputs' => array($data_output), 'output_table' => 'unused','primary_key_column' => 'unused'));
 
         $record_processor->process_row(array("22/3/2012", "1:20", "12/5/2012", "2:30"));
@@ -121,8 +251,8 @@ class Unit_Tests {
         $db = 1;
         $val_processors = array();
         $processor_config = $this->default_processor_config;
-        $data_output = new Column_Splitter_Output( array(), "split_column", ",");
-        $data_output = new Repeated_Column_Output( array( $data_output), 2, 'foreign_key_column', 'table');
+        $data_output = new Column_Splitter_Output( array(), "split_column", ",", FALSE);
+        $data_output = new Repeated_Column_Output( array( $data_output), 2, 'foreign_key_column', 'table', FALSE);
         $record_processor = new Record_Processor(array('data_outputs' => array($data_output), 'output_table' => 'unused','primary_key_column' => 'unused'));
 
         $record_processor->process_row(array("val1,val2", "val3,val4"));
@@ -141,7 +271,7 @@ class Unit_Tests {
         $processor_config['modifiers'] = array(new Time_Validator_Formatter());
         $val_processors[] = new Value_Processor($db, $this->user_config, $processor_config);
         
-        $data_output = new Column_Combiner_Output($val_processors, "date_time");
+        $data_output = new Column_Combiner_Output($val_processors, "date_time", FALSE);
 
         $record_processor = new Record_Processor(array('data_outputs' => array($data_output), 'output_table' => 'unused','primary_key_column' => 'unused'));
 		$record_processor->process_row(array("22/3/2012", "2:30"));
@@ -154,11 +284,14 @@ class Unit_Tests {
         $db = 1;
         $processor_config = $this->default_processor_config;
         $processor_config['modifiers'] = array(new Time_Validator_Formatter());
-        $data_output = new Single_Column_Output( new Value_Processor($db, $this->user_config, $processor_config), "time");
-        $data_output2 = new Single_Column_Output( new Value_Processor($db, $this->user_config, $processor_config), "time2");
+        $data_output = new Single_Column_Output( new Value_Processor($db, $this->user_config, $processor_config), 
+            "time", FALSE);
+        $data_output2 = new Single_Column_Output( new Value_Processor($db, $this->user_config, $processor_config),      
+            "time2", FALSE);
 
         $processor_config['modifiers'] = array(new Date_Validator_Formatter());
-        $data_output3 = new Single_Column_Output(new Value_Processor($db, $this->user_config, $processor_config),'date');
+        $data_output3 = new Single_Column_Output(new Value_Processor($db, $this->user_config, $processor_config),
+            'date', FALSE);
 
         $record_processor = new Record_Processor(array('output_table' => 'unused',
             'primary_key_column' => 'unused',
@@ -184,16 +317,6 @@ class Unit_Tests {
     function test_code_value_validator(){
         $db = $this->user_config->get_database_connection();
 
-        $result = $db->query("DROP TABLE IF EXISTS `mbed`.`animals_easy_db_test_temp`");
-        if ( ! $result ) throw new Exception("Error adding test table to database: " . $db->error);
-        $result = $db->query("
-            CREATE TABLE IF NOT EXISTS `mbed`.`animals_easy_db_test_temp` (
-              `animal_id` INT NOT NULL AUTO_INCREMENT,
-              `animal_code` VARCHAR(45) NOT NULL,
-              PRIMARY KEY (`animal_id`),
-              UNIQUE INDEX `animal_code_UNIQUE` (`animal_code` ASC)
-            ) ENGINE = InnoDB");
-        if ( ! $result ) throw new Exception("Error adding test table to database: " . $db->error);
         $result = $db->query("insert into animals_easy_db_test_temp  (animal_code) values ('animal_code')");
         if ( ! $result ) throw new Exception("Error adding test data: " . $db->error);
         $result = $db->query("insert into animals_easy_db_test_temp  (animal_code) values ('animal_code2')");
@@ -203,9 +326,9 @@ class Unit_Tests {
         $processor_config['modifiers'] = array(new Code_Value_Validator('animals_easy_db_test_temp'));
         $vp = new Value_Processor($db, $this->user_config, $processor_config);
         $vp->init("test_record_table");
-        $this->assertEquals( 1, $vp->process_value("animal_code"), "Error getting corret key from a code value table");
-        $this->assertEquals( 2, $vp->process_value("animal_code2"), "Error getting corret key from a code value table");
-        $db->query("DROP TABLE IF EXISTS `mbed`.`animals_easy_db_test_temp`");
+        // these will print error messages if they fail to find the codes
+        $vp->process_value("animal_code");
+        $vp->process_value("animal_code2");
     }
 
     function test_strip_spaces() {

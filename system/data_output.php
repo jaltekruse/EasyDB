@@ -10,9 +10,18 @@ abstract class Data_Output {
     protected $value_processor;
     protected $main_output_table;
     protected $main_table_primary_key_column;
+    protected $ignore_in_duplicate_check;
+
+    function __construct($ignore_in_duplicate_check){
+        $this->ignore_in_duplicate_check = $ignore_in_duplicate_check;
+    }
 
     public function set_main_output_table($table) {
         $this->main_output_table = $table;
+    }
+
+    public function ignore_in_duplicate_check(){
+        return $this->ignore_in_duplicate_check;
     }
 
     public function set_main_table_pk_column($column) {
@@ -91,7 +100,8 @@ abstract class Data_Output {
 
 class Single_Column_Output extends Data_Output {
 
-    function __construct($value_processor, $output_column_name){
+    function __construct($value_processor, $output_column_name, $ignore_in_duplicate_check ){
+        parent::__construct($ignore_in_duplicate_check);
         $this->output_column_name = $output_column_name;
         $this->value_processor = $value_processor;  
         // TODO - pass down table name from above
@@ -158,7 +168,8 @@ class Repeated_Column_Output extends Data_Output {
      * to the parent record in both the duplicate check and insertion.
      */
     function __construct($data_outputs, $repetition_count  = 1000, $relation_column,
-                         $output_table){
+                         $output_table, $ignore_in_duplicate_check){
+        parent::__construct($ignore_in_duplicate_check);
         $this->data_outputs = $data_outputs;
         $this->data_output_count = count($this->data_outputs);
         $this->repetition_count = $repetition_count;
@@ -295,7 +306,8 @@ class Column_Splitter_Output extends Data_Output {
         }
     }
 
-    function __construct($value_processors, $output_column_names, $delimiter = NULL){
+    function __construct($value_processors, $output_column_names, $delimiter, $ignore_in_duplicate_check){
+        parent::__construct($ignore_in_duplicate_check);
         $this->output_column_names = $output_column_names;
         $this->value_processors = $value_processors;
         $this->delimiter = $delimiter;
@@ -401,7 +413,8 @@ class Column_Combiner_Output extends Data_Output {
         $val_list[] = $this->get_last_val();
     }
 
-    function __construct($value_processors, $output_column_name){
+    function __construct($value_processors, $output_column_name, $ignore_in_duplicate_check){
+        parent::__construct($ignore_in_duplicate_check);
         $this->output_column_name = $output_column_name;
         $this->value_processors = $value_processors;  
         foreach($this->value_processors as $value_processor) {

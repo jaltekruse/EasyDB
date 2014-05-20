@@ -12,6 +12,8 @@
     },
     "code_tables" :
     {
-            "animals_easy_db_test_temp" :                     { "id_column" : "animal_id",                "code_column" : "animal_code" }
+            "animals_easy_db_test_temp" :                     { "id_column" : "animal_id",                "code_column" : "animal_code" },
+            "age_categories_easy_db_test_temp" :              {"id_column" : "age_category_id", "code_column" : "age_category" },
+            "animals" :                                       { "id_column" : "animal_id",                "code_column" : "animal_code" }
     }
 }
