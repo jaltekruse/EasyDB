@@ -213,7 +213,7 @@ class Repeated_Column_Output extends Data_Output {
         throw new Exception("Unsupported operation");
     }
 
-    function duplicate_check_sql() {
+    function duplicate_check_sql($unused_intermediate_table = NULL) {
         $pk_col = $this->main_table_primary_key_column;
         $sql = "";
         for ($i = 0; $i < $this->current_repetition_count; $i++) {

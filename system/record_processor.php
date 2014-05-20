@@ -102,7 +102,7 @@ class Record_Processor {
         $standard_column_checks = array();
         foreach ($this->data_outputs as $data_output) {
             if ($data_output instanceof Repeated_Column_Output) {
-                $repeated_output_checks[] = $data_output->duplicate_check_sql();
+                $repeated_output_checks[] = $data_output->duplicate_check_sql(NULL);
             } else {
                 // passing table name to get rid of 'column ambiguity' errors
                 $standard_column_checks[] = $data_output->duplicate_check_sql($this->output_table);
