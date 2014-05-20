@@ -183,13 +183,23 @@ class Unit_Tests {
         else {
             $this->assertEquals(1, $result->num_rows, "Row was not inserted, or the unique column was not enforced.");
         }
+
+        // test duplicate check
+        $dup_check = $animal_processor->generate_duplicate_check();
+        $result = $db->query($dup_check);
+        if ( ! $result ) echo 'Error with duplicate check:' . $db->error . '<br>';
+        else {
+            $this->assertEquals(1, $result->num_rows, "Duplicate check did not find a matching record.");
+        }
+
         // test unique enforceer
         // re-create the processor so the in memory-cache of code values is refreshed
         $animal_processor = $this->animal_processor($db, $this->user_config);
         try {
             $animal_processor->process_row($test_data_array);
         } catch (Exception $ex) {
-            $this->assertEquals("Exception processing value: Code already appears in the 'animals_easy_db_test_temp' table.", 
+            $this->assertEquals(
+                "Exception processing value: Code already appears in the 'animals_easy_db_test_temp' table.", 
                 $ex->getMessage()); 
         }
     }

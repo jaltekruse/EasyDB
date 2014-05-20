@@ -124,10 +124,10 @@ class Single_Column_Output extends Data_Output {
             $this->finished_handling_an_input();
         } catch (Exception $ex) {
             // TODO - make this report an error to the user and store it in the upload history 
+            $this->finished_handling_an_input();
             throw $ex;
             // TODO - this appearing above and in this catch block is not a mistake, finally blocks not
             // in until php5
-            $this->finished_handling_an_input();
         } 
     }
 }
