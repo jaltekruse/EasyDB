@@ -129,10 +129,6 @@ class Unit_Tests {
         if ( ! $result ) throw new Exception("Error adding test table to database: " . $db->error);
     }
 
-    function test_duplicate_check(){
-
-    }
-
     function test_insert() {
         $db = $this->user_config->get_database_connection();
         $user_config = $this->user_config;
@@ -158,7 +154,9 @@ class Unit_Tests {
         $age_category_processor = new Record_Processor(array('user_config' => $user_config,
             'data_outputs' => $data_outputs,
             'output_table' => 'age_categories_easy_db_test_temp', 'primary_key_column' => 'age_category_id'));
-        $test_data = "[\"elderly\", \"5-5-2005\"]";
+
+        // * is here to test the error character remover that is added by default to value processors
+        $test_data = "[\"elderly*\", \"5-5-2005\"]";
         $test_data_array = json_decode($test_data, true /* parse into associative arrays*/);
         $age_category_processor->process_row($test_data_array);
         $result = $db->query($age_category_processor->insert_main_record_sql());

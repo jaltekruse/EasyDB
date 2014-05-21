@@ -80,7 +80,13 @@ class Value_Processor {
         }
         // add a utf8 decoder to all columns
         $this->modifiers[] = new UTF8_Decoder();
-
+       
+        // for now value processors will default to having a value modifier of * used, unless
+        if ( ! isset($parameters['error_char'])){
+            $this->modifiers[] = new Error_Character_Stripper("*");    
+        } else {
+            $this->modifiers[] = new Error_Character_Stripper($parameters['error_char']);    
+        }
         if ( isset($parameters['modifiers'])){
             $this->modifiers = array_merge($this->modifiers, $parameters['modifiers']);
         }

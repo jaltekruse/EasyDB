@@ -24,9 +24,20 @@ class Record_Processor {
     private $primary_key_column;
     private $user_config;
     private $insert_db;
+    private $last_input_row;
+    private $last_input_row_errored;
+    private $error_char;
     
     public function get_outputs() {
         return $this->data_outputs;
+    }
+
+    public function get_last_input_row_errored() {
+        return $this->last_input_row_errored;
+    }
+
+    public function get_last_input_row() {
+        return $this->last_input_row;
     }
 
     /**
@@ -48,6 +59,8 @@ class Record_Processor {
         assert_true( isset($parameters['output_table']), "Must supply output table for Record_Processor.");
         assert_true( isset($parameters['primary_key_column']), "Must supply primary key column for Record_Processor.");
         assert_true( isset($parameters['user_config']), "Must supply user config for Record_Processor.");
+        // TODO - make this configurable
+        $this->error_char = "*";
         $this->user_config = $parameters['user_config'];
         $this->output_table = $parameters['output_table'];
         $this->data_outputs = $parameters['data_outputs'];
@@ -69,10 +82,14 @@ class Record_Processor {
     }
     
     function process_row($row) {
+        $last_input_row_errored = FALSE;
+        $this->last_input_row = $row;
         $index = 0;
         $this->data_outputs[0]->reset_for_new_row();
         $too_much_input = FALSE;
-        foreach($row as $value) {
+        $row_len = count($row);
+        for ($i = 0; $i < $row_len; $i++){
+            $value = $row[$i];
             try {
                 if ( ! $this->data_outputs[$index]->can_take_more_input()) {
                     $index++;
@@ -86,14 +103,20 @@ class Record_Processor {
     
             } catch (Exception $ex ) {
                 // store error in upload history, add new column to store message about error passed back
+                $last_input_row_errored = TRUE;
+                $this->last_input_row[$i] .= $this->error_char;
                 throw new Exception("Exception processing value: " . $ex->getMessage());
             }
         }
         if ($too_much_input !== FALSE) {
+            $last_input_row_errored = TRUE;
+            $this->last_input_row[$i] .= $this->error_char;
             throw new Exception("Unexpected extra input at the end of row, starting at '" . $too_much_input . "'");
         }
         // check to make sure we recieved all the input we expected
         if ($this->data_outputs[$index]->expecting_more_input()){
+            $last_input_row_errored = TRUE;
+            $this->last_input_row[$i] .= $this->error_char;
             throw new Exception("Not all expected values were provided.");
         }
     }

@@ -27,6 +27,23 @@ abstract class Value_Modifier {
 
 }
 
+class Error_Character_Stripper extends Value_Modifier {
+    
+    private $error_char;
+
+    function __construct($error_char = "*"){
+        $this->error_char = $error_char;
+    }
+
+    function modify_value($value) {
+		if (substr($value, strlen($value) - 1) == $this->error_char){
+			return substr($value, 0, strlen($value) - 1);
+		} else {
+            return $value;
+        }
+    }
+}
+
 class UTF8_Decoder extends Value_Modifier {
 
     function modify_value($value) {
