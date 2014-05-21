@@ -155,7 +155,8 @@ class Unit_Tests {
                 'date_added', FALSE)
         );
 
-        $age_category_processor = new Record_Processor(array('data_outputs' => $data_outputs,
+        $age_category_processor = new Record_Processor(array('user_config' => $user_config,
+            'data_outputs' => $data_outputs,
             'output_table' => 'age_categories_easy_db_test_temp', 'primary_key_column' => 'age_category_id'));
         $test_data = "[\"elderly\", \"5-5-2005\"]";
         $test_data_array = json_decode($test_data, true /* parse into associative arrays*/);
@@ -223,7 +224,7 @@ class Unit_Tests {
                 'animal_code', FALSE)
         );
 
-        return new Record_Processor(array('data_outputs' => $data_outputs,
+        return new Record_Processor(array('user_config' => $user_config, 'data_outputs' => $data_outputs,
             'output_table' => 'animals_easy_db_test_temp', 'primary_key_column' => 'animal_id'));
     }
 
@@ -233,7 +234,8 @@ class Unit_Tests {
         $processor_config['modifiers'] = array(new Date_Validator_Formatter());
         $data_output = new Repeated_Column_Output( array( new Single_Column_Output( 
             new Value_Processor($db, $this->user_config, $processor_config), "time", FALSE)), 3, 'foreign_key_column', 'table', TRUE) ;
-        $record_processor = new Record_Processor(array('data_outputs' => array($data_output), 'output_table' => 'unused','primary_key_column' => 'unused'));
+        $record_processor = new Record_Processor(array('user_config' => $this->user_config,
+        'data_outputs' => array($data_output), 'output_table' => 'unused','primary_key_column' => 'unused'));
         $record_processor->process_row(array("22/3/2012", "22/3/2012", "22/3/2012"));
         $this->assertEquals($record_processor->output_to_array(), array("2012-3-22", "2012-3-22", "2012-3-22"));
     }
@@ -251,7 +253,8 @@ class Unit_Tests {
         $data_output = new Column_Combiner_Output($val_processors, "date_time", FALSE);
 
         $data_output = new Repeated_Column_Output( array( $data_output), 2, 'foreign_key_column', 'table', FALSE);
-        $record_processor = new Record_Processor(array('data_outputs' => array($data_output), 'output_table' => 'unused','primary_key_column' => 'unused'));
+        $record_processor = new Record_Processor(array('user_config' => $this->user_config,
+            'data_outputs' => array($data_output), 'output_table' => 'unused','primary_key_column' => 'unused'));
 
         $record_processor->process_row(array("22/3/2012", "1:20", "12/5/2012", "2:30"));
         $this->assertEquals($record_processor->output_to_array(), array("2012-3-22 1:20", "2012-5-12 2:30"));
@@ -263,7 +266,8 @@ class Unit_Tests {
         $processor_config = $this->default_processor_config;
         $data_output = new Column_Splitter_Output( array(), "split_column", ",", FALSE);
         $data_output = new Repeated_Column_Output( array( $data_output), 2, 'foreign_key_column', 'table', FALSE);
-        $record_processor = new Record_Processor(array('data_outputs' => array($data_output), 'output_table' => 'unused','primary_key_column' => 'unused'));
+        $record_processor = new Record_Processor(array('user_config' => $this->user_config, 
+            'data_outputs' => array($data_output), 'output_table' => 'unused','primary_key_column' => 'unused'));
 
         $record_processor->process_row(array("val1,val2", "val3,val4"));
         $this->assertEquals(array("val1", "val2", "val3", "val4"), $record_processor->output_to_array() );
@@ -283,7 +287,8 @@ class Unit_Tests {
         
         $data_output = new Column_Combiner_Output($val_processors, "date_time", FALSE);
 
-        $record_processor = new Record_Processor(array('data_outputs' => array($data_output), 'output_table' => 'unused','primary_key_column' => 'unused'));
+        $record_processor = new Record_Processor(array('user_config' => $this->user_config, 
+            'data_outputs' => array($data_output), 'output_table' => 'unused','primary_key_column' => 'unused'));
 		$record_processor->process_row(array("22/3/2012", "2:30"));
 		$outputs = $record_processor->get_outputs();
         $this->assertEquals("2012-3-22 2:30", $outputs[0]->get_last_val());
@@ -303,7 +308,8 @@ class Unit_Tests {
         $data_output3 = new Single_Column_Output(new Value_Processor($db, $this->user_config, $processor_config),
             'date', FALSE);
 
-        $record_processor = new Record_Processor(array('output_table' => 'unused',
+        $record_processor = new Record_Processor(array('user_config' => $this->user_config,
+            'output_table' => 'unused',
             'primary_key_column' => 'unused',
             'data_outputs' => array($data_output, $data_output2, $data_output3)));
         try {

@@ -22,6 +22,8 @@ class Record_Processor {
     private $data_outputs_count;
     private $output_table;
     private $primary_key_column;
+    private $user_config;
+    private $insert_db;
     
     public function get_outputs() {
         return $this->data_outputs;
@@ -45,12 +47,15 @@ class Record_Processor {
         assert_true( isset($parameters['data_outputs']), "Must supply data outputs for Record_Processor.");
         assert_true( isset($parameters['output_table']), "Must supply output table for Record_Processor.");
         assert_true( isset($parameters['primary_key_column']), "Must supply primary key column for Record_Processor.");
+        assert_true( isset($parameters['user_config']), "Must supply user config for Record_Processor.");
+        $this->user_config = $parameters['user_config'];
         $this->output_table = $parameters['output_table'];
         $this->data_outputs = $parameters['data_outputs'];
         $this->data_outputs_count = count($this->data_outputs);
         $this->primary_key_column = $parameters['primary_key_column']; 
         $this->repeated_outputs = array();
         $this->non_repeated_outputs = array();
+        $this->insert_db = $this->user_config->get_database_connection('read_write');
         foreach ($this->data_outputs as $data_output) {
             $data_output->set_main_output_table($this->output_table);
             $data_output->set_main_table_pk_column($this->primary_key_column);
@@ -113,6 +118,22 @@ class Record_Processor {
         $sql .= implode(' ', $repeated_output_checks);
         $sql .= ' WHERE ' . implode(' AND ', $standard_column_checks);
         return $sql;
+    }
+
+    function insert() {
+        $db = $this->insert_db;
+        $insert_sql = $this->insert_main_record_sql();
+        $result = $db->query($insert_sql);
+        if (! $result)
+            echo $db->error . '<br>\n';
+        $main_record_id = $db->insert_id;
+        $child_insert_sql = $this->insert_child_record_sql($main_record_id);
+        foreach ($child_insert_sql as $sql){
+            $result = $db->query($sql);
+            if (! $result)
+                echo $db->error . "<br>\n";
+        }
+        return $main_record_id;
     }
 
     function insert_main_record_sql(){
