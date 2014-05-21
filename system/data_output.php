@@ -224,6 +224,8 @@ class Repeated_Column_Output extends Data_Output {
         throw new Exception("Unsupported operation");
     }
 
+    // TODO - modify this to correctly check for duplicates where there are values that appear more
+    // than once. right now a releated list of ("J", "J", "AD") will incorrectly report as a duplicate for ("J", "AD")
     function duplicate_check_sql($unused_intermediate_table = NULL) {
         $pk_col = $this->main_table_primary_key_column;
         $sql = "";
@@ -235,6 +237,9 @@ class Repeated_Column_Output extends Data_Output {
             foreach ($this->data_outputs as $data_output) { 
                 $data_output->set_last_val($this->last_vals[$i]);
                 $column_checks[] = $data_output->duplicate_check_sql_repeated($temp_table);
+                // TODO - this is a bit of a hack, think about how to bring togethet standard and repeated
+                // duplicate check generation
+                $data_output->set_last_val(array());
             }
             $sql .= " AND " . implode(" AND ", $column_checks);
         }
