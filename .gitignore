@@ -1,2 +1,4 @@
 # ignore the user defined functions and unit tests in the main repo
 user
+tags
+*/**/.DS_Store
