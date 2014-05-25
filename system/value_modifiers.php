@@ -62,7 +62,7 @@ class UTF8_Decoder extends Value_Modifier {
  */
 class Null_Validator extends Value_Modifier {
 
-    private $last_val_null;
+    protected $last_val_null;
 
     function modify_value($value) {
         // as stripping spaces is default behavior, it is not included here 
@@ -121,6 +121,7 @@ class Boolean_Validator extends Value_Modifier {
 class Code_Value_Validator extends Value_Modifier {
 
     protected $valid_code_values;
+    protected $valid_id_values;
     protected $case_sensitive;
     protected $table;
     protected $code_column;
@@ -136,6 +137,7 @@ class Code_Value_Validator extends Value_Modifier {
         $this->code_column = $this->parent_value_processor->get_code_column_for_table($this->table);
         $this->id_column = $this->parent_value_processor->get_id_column_for_table($this->table);
         $this->valid_code_values = array(); 
+        $this->valid_id_values = array(); 
         $query = "select " . $this->code_column . "," . $this->id_column . " from " . $this->table;
         $result = $db->query($query);
         if ($result) {
@@ -143,6 +145,7 @@ class Code_Value_Validator extends Value_Modifier {
                 $row = $result->fetch_assoc();
                 if ( ! $this->case_sensitive ) $row[$this->code_column] = strtolower($row[$this->code_column]);
                 $this->valid_code_values[ $row[$this->code_column] ] = $row[$this->id_column];
+                $this->valid_id_values[ $row[$this->id_column] ] = $row[$this->code_column];
             }
         } 
         else {
@@ -156,9 +159,22 @@ class Code_Value_Validator extends Value_Modifier {
         if ( isset($this->valid_code_values[$value]) ) {
             return $this->valid_code_values[$value];
         } else {
+            throw new Exception("Code '" . $value . "' not found in the '" . $this->table . "' table."); 
+        }
+    }
+}
+
+class ID_Value_Enforcer extends Code_Value_Validator {
+
+    function modify_value($value) {
+        if ( ! $this->case_sensitive ) $value = strtolower($value);
+        if ( isset($this->valid_id_values[$value]) ) {
+            return $value;
+        } else {
             throw new Exception("Code not found in the '" . $this->table . "' table."); 
         }
     }
+
 }
 
 class Unique_Code_Enforcer extends Code_Value_Validator {
@@ -219,11 +235,26 @@ class Value_Repeater extends Value_Modifier {
 
 class Time_Validator_Formatter extends Value_Modifier {
 
-    // TODO - expand to handle other formats, am/pm, seconds and milliseconds
+    // TODO - expand to handle other formats, seconds and milliseconds
 
     function modify_value($value) {
+        $error_str = "Error with formatting of a time value.";
+        $value = strtolower($value);
+        $am_pm = NULL;
+        if ( strstr($value, "am") ) {
+            $am_pm = 'am'; 
+            $value = str_replace('am', '', $value);
+        }
+        if ( strstr($value, 'pm' ) ) {
+            if ($am_pm == 'am') throw new Exception($error_str);
+            else {
+                $am_pm = 'pm'; 
+                $value = str_replace('pm', '', $value);
+            }
+        }
         $time_parts = explode(":", $value);
-        assert_true(count($time_parts) == 2, "Error with formatting of a time value.");
+        // commenting this out for now to alow 12:30:00, but not currently validating or storing seconds
+        //assert_true(count($time_parts) == 2, "Error with formatting of a time value.");
         $min = $time_parts[1];
         $hour = $time_parts[0];
         if (  ! is_numeric($min)  || ! is_numeric($hour) || 
@@ -231,11 +262,15 @@ class Time_Validator_Formatter extends Value_Modifier {
                 intval($min) < 0  || intval($min) > 59){
             throw new Exception("Error with time, values are non-numeric or outside of proper range for hours or minutes.");
         }
-        else{
+        else {
+            if ($am_pm == 'pm') {
+                $hour += 12;
+                if ($hour > 24) {
+                    throw new Exception($error_str);
+                }
+            }
+            return $hour . ":" . $min;
             // TODO - will need to do some value modification when doing other date formats as input
-            // (I don not believe the database can handle am/pm), that is why this is declared a modifier despite only validating
-            // right now
-            return $value;
         }
     }
 }

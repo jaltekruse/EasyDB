@@ -18,6 +18,12 @@ class Record_Processor {
     // outputs are stored on creation of this Record_Processor
     private $repeated_outputs;
     private $non_repeated_outputs;
+
+    // the system allows for metadata stored outside of the sheet to be added to each record
+    // this data only needs to be validated once, so here the columns and data to be added to the
+    // insert statements are stored for concatination into the sql queries
+    private $sheet_external_fields;
+    private $sheet_external_data;
     
     private $data_outputs_count;
     private $output_table;
@@ -90,6 +96,7 @@ class Record_Processor {
         $row_len = count($row);
         for ($i = 0; $i < $row_len; $i++){
             $value = $row[$i];
+            echo $value . '<br>';
             try {
                 if ( ! $this->data_outputs[$index]->can_take_more_input()) {
                     $index++;
@@ -111,7 +118,8 @@ class Record_Processor {
         if ($too_much_input !== FALSE) {
             $last_input_row_errored = TRUE;
             $this->last_input_row[$i] .= $this->error_char;
-            throw new Exception("Unexpected extra input at the end of row, starting at '" . $too_much_input . "'");
+            return;
+            //throw new Exception("Unexpected extra input at the end of row, starting at '" . $too_much_input . "'");
         }
         // check to make sure we recieved all the input we expected
         if ($this->data_outputs[$index]->expecting_more_input()){
@@ -147,14 +155,16 @@ class Record_Processor {
         $db = $this->insert_db;
         $insert_sql = $this->insert_main_record_sql();
         $result = $db->query($insert_sql);
-        if (! $result)
-            echo $db->error . '<br>\n';
+        if (! $result) {
+            echo $insert_sql . '<br>';
+            echo "Error with main record insert:" . $db->error . "<br>\n";
+        }
         $main_record_id = $db->insert_id;
         $child_insert_sql = $this->insert_child_record_sql($main_record_id);
         foreach ($child_insert_sql as $sql){
             $result = $db->query($sql);
             if (! $result)
-                echo $db->error . "<br>\n";
+                echo "error with child record insertion:" . $db->error . "<br>\n";
         }
         return $main_record_id;
     }

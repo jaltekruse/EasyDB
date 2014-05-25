@@ -255,7 +255,7 @@ class Unit_Tests {
             'data_outputs' => array($data_output), 'output_table' => 'unused','primary_key_column' => 'unused'));
 
         $record_processor->process_row(array("22/3/2012", "1:20", "12/5/2012", "2:30"));
-        $this->assertEquals($record_processor->output_to_array(), array("2012-3-22 1:20", "2012-5-12 2:30"));
+        $this->assertEquals(array("2012-3-22 1:20", "2012-5-12 2:30"), $record_processor->output_to_array());
     }
 
     function test_repeated_splitter() {
@@ -272,7 +272,6 @@ class Unit_Tests {
 
     }
 
-    // TODO write test for column splitter
     function test_column_combiner_processor() {
         $db = 1;
         $val_processors = array();
@@ -301,31 +300,34 @@ class Unit_Tests {
             "time", FALSE);
         $data_output2 = new Single_Column_Output( new Value_Processor($db, $this->user_config, $processor_config),      
             "time2", FALSE);
+        $data_output3 = new Single_Column_Output( new Value_Processor($db, $this->user_config, $processor_config),      
+            "time3", FALSE);
 
         $processor_config['modifiers'] = array(new Date_Validator_Formatter());
-        $data_output3 = new Single_Column_Output(new Value_Processor($db, $this->user_config, $processor_config),
+        $data_output4 = new Single_Column_Output(new Value_Processor($db, $this->user_config, $processor_config),
             'date', FALSE);
 
         $record_processor = new Record_Processor(array('user_config' => $this->user_config,
             'output_table' => 'unused',
             'primary_key_column' => 'unused',
-            'data_outputs' => array($data_output, $data_output2, $data_output3)));
+            'data_outputs' => array($data_output, $data_output2, $data_output3, $data_output4)));
         try {
-            $record_processor->process_row(array("2:30", "4:30", "22asdf/3/2012"));
+            $record_processor->process_row(array("2:30", "4:30am", "4:30pm", "22asdf/3/2012"));
         } catch (Exception $ex) {
             $this->assertEquals("Exception processing value: Error with date formatting.", $ex->getMessage(), "Recieved wrong error message.");
         }
         try {
-            $record_processor->process_row(array("2:30", "4:30", "22/3/2012", "extra_column"));
+            $record_processor->process_row(array("2:30", "4:30am", "4:30pm", "22/3/2012", "extra_column"));
         } catch (Exception $ex) {
             $this->assertEquals("Unexpected extra input at the end of row, starting at 'extra_column'", $ex->getMessage(), "Recieved wrong error message.");
         }
-        $record_processor->process_row(array("2:30", "4:30", "22/3/2012"));
+        $record_processor->process_row(array("2:30", "4:30:00am", "4:30:00pm",  "22/3/2012"));
 		$outputs = $record_processor->get_outputs();
         $this->assertEquals("2:30", $outputs[0]->get_last_val());
         $this->assertEquals("4:30", $outputs[1]->get_last_val());
-        $this->assertEquals("2012-3-22", $outputs[2]->get_last_val());
-        $this->assertEquals(array("2:30", "4:30", "2012-3-22"), $record_processor->output_to_array());
+        $this->assertEquals("16:30", $outputs[2]->get_last_val());
+        $this->assertEquals("2012-3-22", $outputs[3]->get_last_val());
+        $this->assertEquals(array("2:30", "4:30", "16:30", "2012-3-22"), $record_processor->output_to_array());
     }
 
     function test_code_value_validator(){

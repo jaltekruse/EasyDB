@@ -11,13 +11,25 @@ abstract class Data_Output {
     protected $main_output_table;
     protected $main_table_primary_key_column;
     protected $ignore_in_duplicate_check;
+    // this allows for information known about the incoming data to change processing
+    // without requiring a re-construction of the Record_Processor that holds this Data_Output
+    protected $disabled;
 
     function __construct($ignore_in_duplicate_check){
         $this->ignore_in_duplicate_check = $ignore_in_duplicate_check;
+        $this->disabled = FALSE;
     }
 
     public function set_main_output_table($table) {
         $this->main_output_table = $table;
+    }
+
+    public function disable() {
+        $this->disabled = TRUE;
+    }
+
+    public function enable() {
+        $this->disabled = FALSE;
     }
 
     public function ignore_in_duplicate_check(){
@@ -53,6 +65,7 @@ abstract class Data_Output {
     }
     
     function can_take_more_input() {
+        if ( $this->disabled) return FALSE;
         if ( $this->inputs_handled_count < $this->number_of_inputs())
             return TRUE;
         else
@@ -60,13 +73,14 @@ abstract class Data_Output {
     }
 
     function add_values_to_array(&$val_list) {
+        if ( $this->disabled ) return;
         $val_list[] = $this->last_val;
     }
 
     function add_values_to_assoc_array(&$val_list) {
+        if ( $this->disabled ) return;
         $val_list[$this->get_output_col_name()] = $this->get_last_val();
     }
-
 
     public function set_last_val($val) {
         $this->last_val = $val[$this->output_column_name];
@@ -159,6 +173,10 @@ class Repeated_Column_Output extends Data_Output {
     private $relation_column;
     private $output_table;
 
+    // TODO - fix this!! this is used currently to store when the fist blank appears
+    // so we know where to stop generating child records rather than trying to insert nulls
+    private $blank_at_pos;
+
     /*
      * takes a list of data outputs to be used repeatedly. Second parameter is optional if the
      * number of repetitions is known. It default to 1000, anything close to this is stretching the
@@ -188,14 +206,19 @@ class Repeated_Column_Output extends Data_Output {
     public function reset_for_new_row() {
         $this->current_data_output_index = 0;
         $this->current_repetition_count = 0;
+        $this->blank_at_pos = -1;
         $this->data_outputs[0]->reset_for_new_row();
     }   
     
     protected function get_current_index() {
         return $this->current_repetion_count;
     }
-
+    
     function convert_to_output_format($value) {
+        // TODO allow blanks in reptitions
+        if ($this->blank_at_pos == -1 && $value == ""){
+            $this->blank_at_pos = $this->current_repetition_count;
+        }
         try {
             $this->data_outputs[$this->current_data_output_index]->convert_to_output_format($value);
 
@@ -229,7 +252,7 @@ class Repeated_Column_Output extends Data_Output {
     function duplicate_check_sql($unused_intermediate_table = NULL) {
         $pk_col = $this->main_table_primary_key_column;
         $sql = "";
-        for ($i = 0; $i < $this->current_repetition_count; $i++) {
+        for ($i = 0; $i < $this->current_repetition_count && $i < $this->blank_at_pos; $i++) {
             $temp_table = $this->output_table . $i;
             $sql .= " INNER JOIN " . $this->output_table . " AS " . $temp_table . " ON " . $temp_table . 
                 "." . $pk_col . " = " . $this->main_output_table. "." . $pk_col . " ";
@@ -249,7 +272,8 @@ class Repeated_Column_Output extends Data_Output {
     function generate_insert_sql($last_insert_id) {
         $sql_statements = array();
         $last_vals;
-        for ($i = 0; $i < $this->current_repetition_count; $i++) { 
+        echo $this->blank_at_pos;
+        for ($i = 0; $i < $this->current_repetition_count && $i < $this->blank_at_pos; $i++) { 
             $last_vals = $this->last_vals[$i];
             $last_vals[$this->main_table_primary_key_column] = $last_insert_id;
             $sql_statements[] = Record_Processor::insert_sql_based_on_assoc_array(
@@ -266,6 +290,7 @@ class Repeated_Column_Output extends Data_Output {
     }
 
     function add_values_to_array(&$val_list) {
+        if ( $this->disabled ) return;
         foreach ($this->last_vals as $val) {
             foreach ($val as $sub_val){
                 $val_list[] = $sub_val;
@@ -274,6 +299,7 @@ class Repeated_Column_Output extends Data_Output {
     }
 
     function add_values_to_assoc_array(&$val_list) {
+        if ( $this->disabled ) return;
         $val_list[$this->get_output_col_name()] = $this->get_last_val();
     }
 
@@ -298,12 +324,14 @@ class Column_Splitter_Output extends Data_Output {
     }
 
     function add_values_to_array(&$val_list) {
+        if ( $this->disabled ) return;
         foreach ($this->last_vals as $value ) { 
             $val_list[] = $value;
         }
     }
 
     function add_values_to_assoc_array(&$val_list) {
+        if ( $this->disabled ) return;
         $i = 0;
         foreach ($this->last_vals as $value ) { 
             $val_list[$this->output_column_names[$i]] = $value;
@@ -411,10 +439,12 @@ class Column_Combiner_Output extends Data_Output {
 
 
     function add_values_to_assoc_array(&$val_list) {
+        if ( $this->disabled ) return;
         $val_list[$this->output_column_name] = $this->get_last_val();
     }
 
     function add_values_to_array(&$val_list) {
+        if ( $this->disabled ) return;
         $val_list[] = $this->get_last_val();
     }
 
