@@ -35,7 +35,9 @@ class Sheet_Processor {
      */
     function validate_and_insert_records($data, $external_columns) {
         // TODO - validate and generate sheet external data insert statement fragments
-        
+        // external columns are assumed to be in an associative array, as they are not part of a sheet
+        // we will not want them to have to come in a specific order
+
         $lines = explode($data, $this->row_separator);
         $handling_resubmitted_records = FALSE;
         // keep track of the number of lines that should be skipped at the beginning of the sheet

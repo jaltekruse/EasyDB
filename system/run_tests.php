@@ -203,6 +203,30 @@ class Unit_Tests {
         }
     }
 
+    function test_assoc_array_processing() {
+        $db = $this->user_config->get_database_connection();
+        $user_config = $this->user_config;
+
+        $external_fields_processor = $this->time_time_time_date_processor();
+        $record_processor = $this->animal_processor($db, $user_config);
+
+        $test_data = "[\"5-5-2005\", \" F \", \"\", \"jane\"]";
+        $test_data_array = json_decode($test_data, true /* parse into associative arrays*/);
+        $record_processor->process_row($test_data_array);
+
+        $test_data = "{ \"time\" : \"1:30\", \"time2\" :  \"2:00pm\", \"time3\" : \"5:30am\", \"date\" : \"5-5-2005\"}";
+        $test_data_array = json_decode($test_data, true /* parse into associative arrays*/);
+        $external_fields_processor->process_row_assoc($test_data_array);
+        $output_fields_and_data = $external_fields_processor->generate_columns_and_data_lists();
+        $this->assertEquals(array( 'fields' => '`time`, `time2`, `time3`, `date`',
+            'data' => '1:30, 14:00, 5:30, 2005-5-5' ), $output_fields_and_data);
+        $record_processor->set_sheet_external_fields_and_data($output_fields_and_data);
+        $this->assertEquals("insert into animals_easy_db_test_temp " . 
+            "(`birthday`,`is_male`,`age_category_id`,`animal_code`, `time`, `time2`, `time3`, `date`) ". 
+            "VALUES ('2005-5-5','0',NULL,'jane', 1:30, 14:00, 5:30, 2005-5-5)",
+                $record_processor->insert_main_record_sql());
+    }
+
     function animal_processor($db, $user_config) {
         $data_outputs = array(
             // date time
@@ -292,25 +316,36 @@ class Unit_Tests {
         $this->assertEquals(array("2012-3-22 2:30"), $record_processor->output_to_array());
     }
 
-    function test_record_processor() {
+    function time_time_time_date_processor() {
         $db = 1;
         $processor_config = $this->default_processor_config;
-        $processor_config['modifiers'] = array(new Time_Validator_Formatter());
-        $data_output = new Single_Column_Output( new Value_Processor($db, $this->user_config, $processor_config), 
-            "time", FALSE);
-        $data_output2 = new Single_Column_Output( new Value_Processor($db, $this->user_config, $processor_config),      
-            "time2", FALSE);
-        $data_output3 = new Single_Column_Output( new Value_Processor($db, $this->user_config, $processor_config),      
-            "time3", FALSE);
+        $processor_config['modifiers'] = array();
+        $data_output = new Single_Column_Output( new Value_Processor($db, $this->user_config, 
+            array('column' => 'test', 'modifiers' => array(new Time_Validator_Formatter()))), "time", FALSE);
+        $data_output2 = new Single_Column_Output( new Value_Processor($db, $this->user_config,
+            array('column' => 'test', 'modifiers' => array(new Time_Validator_Formatter()))), "time2", FALSE);
+        $data_output3 = new Single_Column_Output( new Value_Processor($db, $this->user_config,
+            array('column' => 'test', 'modifiers' => array(new Time_Validator_Formatter()))), "time3", FALSE);
 
-        $processor_config['modifiers'] = array(new Date_Validator_Formatter());
-        $data_output4 = new Single_Column_Output(new Value_Processor($db, $this->user_config, $processor_config),
-            'date', FALSE);
+        $data_output4 = new Single_Column_Output(new Value_Processor($db, $this->user_config, 
+            array( 'column' => 'test', 'modifiers' => array(new Date_Validator_Formatter()))), 'date', FALSE);
 
-        $record_processor = new Record_Processor(array('user_config' => $this->user_config,
+        $data_output_names = array(
+            'time' => 0,
+            'time2' => 1,
+            'time3' => 2,
+            'date' => 3
+        );
+
+        return new Record_Processor(array('user_config' => $this->user_config,
             'output_table' => 'unused',
             'primary_key_column' => 'unused',
+            'data_output_names' => $data_output_names,
             'data_outputs' => array($data_output, $data_output2, $data_output3, $data_output4)));
+    }
+
+    function test_record_processor() {
+        $record_processor = $this->time_time_time_date_processor();
         try {
             $record_processor->process_row(array("2:30", "4:30am", "4:30pm", "22asdf/3/2012"));
         } catch (Exception $ex) {

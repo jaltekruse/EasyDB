@@ -272,7 +272,6 @@ class Repeated_Column_Output extends Data_Output {
     function generate_insert_sql($last_insert_id) {
         $sql_statements = array();
         $last_vals;
-        echo $this->blank_at_pos;
         for ($i = 0; $i < $this->current_repetition_count && $i < $this->blank_at_pos; $i++) { 
             $last_vals = $this->last_vals[$i];
             $last_vals[$this->main_table_primary_key_column] = $last_insert_id;
