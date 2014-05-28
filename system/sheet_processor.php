@@ -1,12 +1,13 @@
 <?php
+include_once("record_processor.php");
 
 class Sheet_Processor { 
 
-    private $record_processor;
+    protected $record_processor;
     // This processor will validate data that does not come from the 'cells' of your
     // primary dataset. It can represent metata like shet filename, uploader, author
     // of the record or the date of upload
-    private $external_vals_processor;
+    protected $external_vals_processor;
 
     // for delimited text such as CSV
     private $row_separator;
@@ -37,6 +38,22 @@ class Sheet_Processor {
     }
 
     /*
+     * This method allows for users to detect if the current row representats the headers for the sheet
+     * and handle them accordingly. For some users the sheets may take several formats from changing requirements
+     * over the time of their data tracking. This allows them to set specific read rules based on their headers.
+     *
+     * This method should return true or false if the headers are detected, this prompts the reading of regular
+     * data.
+     */
+    function check_for_column_headers($row) {
+        return false;
+    }
+
+    function get_last_insert_time() {
+        return $this->current_time;
+    }
+
+    /*
      * Function to handle input in the form of delimited text with some other fields
      * outside of the main 'sheet'.
      *
@@ -49,18 +66,23 @@ class Sheet_Processor {
         $this->current_time = "";
         if ( $result){
             $row = $result->fetch_assoc();
-            $$this->current_time = $row['time'];
+            $this->current_time = $row['time'];
         }
         else{
-            // database conntction error, should have been reported earlier
+            throw new Exception("Error finding current time to store with uploads.");
         }
+        $external_columns['upload_date'] = $this->current_time;
         // TODO - validate and generate sheet external data insert statement fragments
         // external columns are assumed to be in an associative array, as they are not part of a sheet
         // we will not want them to have to come in a specific order
         $this->external_vals_processor->process_row_assoc($external_columns);
         $this->record_processor->set_sheet_external_fields_and_data(
             $this->external_vals_processor->generate_columns_and_data_lists());
-        $lines = explode($data, $this->row_separator);
+        echo $data;
+        // upload history also uses external columns, but does not need the upload_date in the array
+        unset($external_columns['upload_date']);
+        $lines = explode( $this->row_separator, $data);
+        print_r($lines);
         $handling_resubmitted_records = FALSE;
         // keep track of the number of lines that should be skipped at the beginning of the sheet
         // including blanks and the header
@@ -88,11 +110,24 @@ class Sheet_Processor {
             // on the column headers
             if ( ! $this->check_for_column_headers($row) ) {
                 $lines_to_skip--;
+                break;
             }
         }
 
+        // this method is used to add columns that are needed to process the records if they are re-submitted,
+        // but are not stored as part of the records themselves. Currenty this is just used to add the repetition
+        // counts for repeated columns. This call is placed here so the sheet processors can use the 
+        // check_for_column_headers function to detect the sheet heades and adjust the column counts an necessary.
+        // TODO - figure out if the way this works could be cleaner
+        // To do this the information must be stored in the ubclass between the two method calls for now, this may
+        // change in the future
+        $this->add_sheet_processing_metadata($external_columns);
+        $line_count = count($lines);
+        echo $line_count . ' ' . $lines_to_skip;
         for ($i = $lines_to_skip; $i < $line_count; $i++) {
+            $record_id = '';
             $line = $lines[$i];
+            echo 'proess line<br>' . $line;
 			// ignore blank lines
             if (trim($line) == "") continue;
 
@@ -103,85 +138,78 @@ class Sheet_Processor {
 
 			// save this line in the history of uploads, unlike before I am saving all uploaded raw data as well as
             // application output
-			$record_id = save_upload_attempt_in_history($entry_parts, '', '0', $record_id, $external_columns);	
+			$record_id = $this->save_upload_attempt_in_history($row, '', '0', $record_id, $external_columns);	
 			if ($record_id == false){
 				continue; // there was an issue with the record_id
             }
 
             try {
-                $record_processor->process_row($row);
+                $this->record_processor->process_row($row);
             } catch (Exception $ex) {
                 echo "Error processing row - " . $ex->getMessage();
-                $to_save = $record_processor->get_last_input_row();
+                $to_save = $this->record_processor->get_last_input_row();
                 // add back the record id
                 array_unshift($to_save, $record_id);
-	            save_upload_attempt_in_history($to_save, 'error', '1', $record_id, $external_columns);
+	            $this->save_upload_attempt_in_history($to_save, 'error', '1', $record_id, $external_columns);
                 continue;
             }
-            $dup_check = $record_processor->generate_duplicate_check();
-            $result = $db->query($dup_check);
-            if ( ! $result ) $dev_err .=  "ERROR WITH DUP CHECK!! : " . $db->error;
+            $dup_check = $this->record_processor->generate_duplicate_check();
+            $result = $this->db->query($dup_check);
+            if ( ! $result ) $dev_err .=  "ERROR WITH DUP CHECK!! : " . $this->db->error;
             else {
                 if ($result->num_rows > 0) {
-                    save_record($original_entry_parts, 'duplicate', '1', $record_id);
+                    $this->save_upload_attempt_in_history($this->record_processor->get_last_input_row(), 'duplicate', '1', $record_id, $external_columns);
                     continue;
                 }     
             }
-            $record_inserter->process_row($entry_parts);
-            print_r($record_inserter->output_to_array);
-            $new_observation_id = $record_inserter->insert();
-            $result = $db->query("update scan_observations set record_id = '" . $record_id . "' where observation_id = '" . $new_observation_id . "'");	
+            $this->record_processor->process_row($row);
+            print_r($this->record_processor->output_to_array());
+            $new_observation_id = $this->record_processor->insert();
+            $result = $this->db->query("update scan_observations set record_id = '" . $record_id . "' where observation_id = '" . $new_observation_id . "'");	
             if ( $result ){ } // success
             else{
-                echo "Error linking uploaded record to upload history: " .  $db->error . "<br>";
+                echo "Error linking uploaded record to upload history: " .  $this->db->error . "<br>";
             }
             // need to allow changes in some of the columns to impact the actual row data that will be saved
             // after processing, such as with columns that are supposed to fill down the sheet, but we will not
             // necessarily be processing the record above it the provided the values when we are going to correct
             // a record in error at a later time (as the preivous records may have been without errors)
-            save_record($original_entry_parts, 'successful add', '1', $record_id);
+            $this->save_upload_attempt_in_history($this->record_processor->get_last_input_row(), 'successful add', '1', $record_id, $external_columns);
         } 
     }
 
-    /*
-     * This method allows for users to detect if the current row representats the headers for the sheet
-     * and handle them accordingly. For some users the sheets may take several formats from changing requirements
-     * over the time of their data tracking. This allows them to set specific read rules based on their headers.
-     *
-     * This method should return true or false if the headers are detected, this prompts the reading of regular
-     * data.
-     */
-    function check_for_column_headers($row) {
-        return false;
+    protected function add_sheet_processing_metadata(&$external_columns){
     }
 
     // TODO - deal with invalid record numbers passed in
     // assumes that record_fields has 
     function save_upload_attempt_in_history($input, $status, $is_webapp_output, $record_id, $record_fields){
         $uploader_id = $record_fields['uploader_id'];
+        print_r($record_fields);
         if (is_null($record_id) || ! ctype_digit(trim($record_id))){
             unset($record_fields['uploader_id']);
             $record_insert_query = Record_Processor::insert_sql_based_on_assoc_array($record_fields, 'records');
-            $result = $db->query($record_insert_query);	
+            $result = $this->db->query($record_insert_query);	
             if ($result){
-                $record_id = $db->insert_id;
+                $record_id = $this->db->insert_id;
             }
             else{
-                echo "error adding record to upload history:" . $db->error;
+                echo "error adding record to upload history:" . $this->db->error;
             }
         }
         $sql = "select record_id from records where record_id = '" . $record_id . "'";
-        $result = $db->query($sql);
+        $result = $this->db->query($sql);
         if ( $result && $result->num_rows == 1){
             ;// successful add of record, or recall of correct previous id
         }
         else{
-            $dev_err .= "Could not find record with the given ID:" . $db->error . "<br>\n";
+            $dev_err .= "Could not find record with the given ID:" . $this->db->error . "<br>\n";
             // TODO - make this a class level variable?
             //$invalid_record_numbers .= $record_id . ", ";
             return false; // do not do the next query, it will fail due to a bad foreign key
         }
         $sql = "INSERT INTO upload_attempts (upload_date, uploader_id, record_id, is_webapp_output, status, ";
+        print_r($input);
         for($i = 1; $i <= count($input); $i++){
             $sql .= "col_" . $i;
             if ( $i != count($input))
@@ -194,9 +222,9 @@ class Sheet_Processor {
         print_r($input);
         $sql .= implode("','", $input) . "')"; 
         //echo $sql . "<br>";
-        $result = $db->query($sql);
+        $result = $this->db->query($sql);
         if (! $result){
-            echo "Error adding upload attempt: " . $db->error . " - " . $sql;
+            echo "Error adding upload attempt: " . $this->db->error . " - " . $sql;
         }
         return $record_id;
     }

@@ -1,6 +1,6 @@
 <?php
 
-include_once("record_processor.php");
+include_once("sheet_processor.php");
 include_once("../user/user_config.php");
 include_all_tests("../user/UDFs/tests");
 
@@ -43,6 +43,7 @@ foreach ($unit_test_classes as $unit_tests) {
             echo "Running test: " . $test . "<br>\n"; 
             try {
                 $unit_tests->$test();
+                echo '<span style="color:blue">SUCCESS</span><br>';
             } catch (Exception $ex){
                 echo $ex->getMessage() . "<br>\n";
             }

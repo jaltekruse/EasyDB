@@ -117,6 +117,12 @@ class Record_Processor {
         $this->sheet_external_fields_and_data = $sheet_external_fields_and_data;
     }
 
+    function set_repeated_data_output_repetition_count($output_name, $repetitions) {
+        // TODO - make this safer, if this is called on a non-repeated column I believe it will throw
+        // a fatal error
+        $this->data_outputs[$this->data_output_names[$output_name]]->set_number_of_repetitions($repetitions);
+    }
+
     private function start_row($row) {
         $this->last_input_row = $row;
     }
@@ -200,9 +206,10 @@ class Record_Processor {
                 throw $ex;
             }
         }
+        // TODO - re-enable this when it can handle extra input that is just spaces without saying there is an error
         if ($too_much_input !== FALSE) {
-            $last_input_row_errored = TRUE;
-            $this->place_error_char($this->index_in_input_row);
+            //$last_input_row_errored = TRUE;
+            //$this->place_error_char($this->index_in_input_row);
             return;
             // TODO - re-enable this
             //throw new Exception("Unexpected extra input at the end of row, starting at '" . $too_much_input . "'");
@@ -237,7 +244,11 @@ class Record_Processor {
         // both guarenteed to return values in the same order
         foreach ( $output_array as $field => $value) {
             $lists['fields'][] = $field;
-            $lists['data'][] = $value;
+
+            if (is_null($value))
+                $lists['data'][] = "NULL";
+            else
+                $lists['data'][] = "'" . $value . "'";
         }
         $lists['fields'] = "`" . implode('`, `', $lists['fields']) . "`";
         $lists['data'] = implode(', ', $lists['data']);

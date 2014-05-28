@@ -215,6 +215,10 @@ class Repeated_Column_Output extends Data_Output {
         }
     }
 
+    public function set_number_of_repetitions($count) {
+        $this->repetition_count = $count;
+    }
+
     function number_of_repetitions() { 
         return $this->repetition_count;
     }
