@@ -16,6 +16,7 @@ class Value_Processor {
     private $column;
     private $db;
     private $user_config;
+    private $parent_data_output;
 
     // These methods allow access to these fields for all of the validators and modifiers, which have a
     // reference back to this object
@@ -65,7 +66,7 @@ class Value_Processor {
      */
     function __construct(&$db, $user_config, $parameters) {
         if ( ! isset($parameters['strip_whitespace'] )) $parameters['strip_whitespace'] = Strip_Whitespace::BOTH;
-        assert_true(isset($parameters['column']), "Column must be specified for a Value_Processor)");
+        assert(isset($parameters['column'])); // "Column must be specified for a Value_Processor."
         $this->column = $parameters['column'];
         $this->db = $db;
         $this->user_config = $user_config;
@@ -100,7 +101,8 @@ class Value_Processor {
 
     }
 
-    function init($table) {
+    function init($table, $parent_data_output) {
+        $this->parent_data_output = $parent_data_output;
         $this->table = $table;
         foreach ($this->modifiers as $modifier) {
             $modifier->init();
@@ -108,6 +110,10 @@ class Value_Processor {
         foreach ($this->validators as $validator) {
             $validator->init();
         }
+    }
+
+    public function modify_current_value($value) {
+        $this->parent_data_output->modify_current_value($value);
     }
 
     /*

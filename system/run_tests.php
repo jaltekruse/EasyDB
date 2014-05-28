@@ -198,7 +198,7 @@ class Unit_Tests {
             $animal_processor->process_row($test_data_array);
         } catch (Exception $ex) {
             $this->assertEquals(
-                "Exception processing value: Code already appears in the 'animals_easy_db_test_temp' table.", 
+                "Code already appears in the 'animals_easy_db_test_temp' table.", 
                 $ex->getMessage()); 
         }
     }
@@ -349,7 +349,7 @@ class Unit_Tests {
         try {
             $record_processor->process_row(array("2:30", "4:30am", "4:30pm", "22asdf/3/2012"));
         } catch (Exception $ex) {
-            $this->assertEquals("Exception processing value: Error with date formatting.", $ex->getMessage(), "Recieved wrong error message.");
+            $this->assertEquals("Error with date formatting.", $ex->getMessage(), "Recieved wrong error message.");
         }
         try {
             $record_processor->process_row(array("2:30", "4:30am", "4:30pm", "22/3/2012", "extra_column"));
@@ -376,7 +376,7 @@ class Unit_Tests {
         $processor_config = $this->default_processor_config;
         $processor_config['modifiers'] = array(new Code_Value_Validator('animals_easy_db_test_temp'));
         $vp = new Value_Processor($db, $this->user_config, $processor_config);
-        $vp->init("test_record_table");
+        $vp->init("test_record_table", NULL);
         // these will print error messages if they fail to find the codes
         $vp->process_value("animal_code");
         $vp->process_value("animal_code2");
@@ -445,14 +445,51 @@ class Unit_Tests {
         $processor_config['modifiers'][] = new Value_Repeater();
         $processor_config['modifiers'][] = new Time_Validator_Formatter();
         $vp = new Value_Processor($db, $this->user_config, $processor_config);
+
+        // the repeater refers back up to the parent data outputs and record processors to allow saving the value
+        // as it is repeated down the dataset into the upload history (rather than leave the blanks in the history)
+        $data_output = new Single_Column_Output($vp, 'date', FALSE);
+        $rp = new Record_Processor(array('user_config' => $this->user_config,
+            'output_table' => 'unused', 'primary_key_column' => 'unused',
+            'data_outputs' => array($data_output)));
         try {
-            $vp->process_value("");
+            $rp->process_row(array(""));
         } catch (Exception $ex) {
             $this->assertEquals("No value provided for repeating column.", $ex->getMessage(), "Wrong error returned from test of repeater.");
         }
-        $this->assertEquals( "2:30", $vp->process_value("2:30"), "problem validating time.");
-        $this->assertEquals( "2:30", $vp->process_value(" "), "problem validating time.");
-        $this->assertEquals( "2:30", $vp->process_value(""), "problem validating time.");
+        $rp->process_row(array("2:30"));
+        $this->assertEquals( array("2:30"), $rp->output_to_array(), "problem validating time.");
+        // value processors have default triming of whitespace
+        $rp->process_row(array(" "));
+        $this->assertEquals( array("2:30"), $rp->output_to_array(), "problem validating time.");
+        $rp->process_row(array(""));
+        $this->assertEquals( array("2:30"), $rp->output_to_array(), "problem validating time.");
+    }
+
+    function test_repeater_upload_history_behavior() {
+        $db = 1;
+        $record_processor = new Record_Processor(array('user_config' => $this->user_config,
+            'output_table' => 'unused',
+            'primary_key_column' => 'unused',
+            'data_outputs' => array(
+                new Single_Column_Output(new Value_Processor($db, $this->user_config, array("column" => "unused", 
+                "modifiers" => array(new Value_Repeater(), new Time_Validator_Formatter()))), 'unused', FALSE),
+                new Single_Column_Output(new Value_Processor($db, $this->user_config, array("column" => "unused", 
+                "modifiers" => array(new Value_Repeater(), new Time_Validator_Formatter()))), 'unused', FALSE)
+            )));
+        $record_processor->process_row(array("2:30", "5:45pm"));
+        try {
+            $record_processor->process_row(array("", "  not_a_formatted_time    "));
+        } catch (Exception $ex) {
+            $this->assertEquals("Error with formatting of a time value.", $ex->getMessage());
+            $this->assertEquals(array("2:30", "not_a_formatted_time*"), $record_processor->get_last_input_row());
+        }
+        try {
+            $record_processor->process_row(array("", "  "));
+        } catch (Exception $ex) {
+            $this->assertEquals("Error with formatting of a time value.", $ex->getMessage());
+            $this->assertEquals(array("2:30", "not_a_formatted_time*"), $record_processor->get_last_input_row());
+        }
     }
 
 }

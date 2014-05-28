@@ -1,12 +1,6 @@
 <?php
 include_once("data_output.php");
 
-function assert_true($cond, $message = "No message specified."){
-	if ( ! $cond ) {
-		assert(FALSE);
-		echo $message;
-	}	
-}
 class Record_Processor {
 
     // defines the sequence of outputs to be used, current interface uses numerical positions
@@ -38,8 +32,28 @@ class Record_Processor {
     private $primary_key_column;
     private $user_config;
     private $insert_db;
+
+    // The last row of raw data is stored here to allow it to be inserted in the upload history if one of the
+    // validators fails. This does mean that the values will be re-processed upon an upload of the ammended
+    // record, but it removes the complexity of having to store which fields have already been validated
+    // (it might save a little processing if we stored the numeric foreign keys of code values for example, but
+    // notating that some column represent raw data and some present processed data would likely be more
+    // difficult and possibly even take more processing time in the end)
     private $last_input_row;
+    
+    // In a few rare cases we need to change the raw input from a validator to allow for correct processing
+    // of error correcting uploads in the future. The current use case for this feature is the value repeating
+    // validator. This is desiged to handle cases where values are left out of a sheet, and the most recent non-
+    // blank value is expected to cascade down the dataset. In this case to handle subsequent uploads of error
+    // corrections on columns that originally contain some of these blanks, we will fill in the blanks with the
+    // appropriate values copied down from above into the raw input array for this row to be inserted into the
+    // upload history.
+    private $index_in_input_row;
+
+    // boolean that is set if an error occurs
     private $last_input_row_errored;
+
+    // the character to add to the end of a column if it is the one in error, defaults to '*'
     private $error_char;
     
     public function get_outputs() {
@@ -69,10 +83,10 @@ class Record_Processor {
       *     be applied to the whole sheet to save the time of copying it into each row manually
       */
     function __construct($parameters){
-        assert_true( isset($parameters['data_outputs']), "Must supply data outputs for Record_Processor.");
-        assert_true( isset($parameters['output_table']), "Must supply output table for Record_Processor.");
-        assert_true( isset($parameters['primary_key_column']), "Must supply primary key column for Record_Processor.");
-        assert_true( isset($parameters['user_config']), "Must supply user config for Record_Processor.");
+        assert( isset($parameters['data_outputs'])); // "Must supply data outputs for Record_Processor."
+        assert( isset($parameters['output_table'])); //"Must supply output table for Record_Processor.");
+        assert( isset($parameters['primary_key_column']));//"Must supply primary key column for Record_Processor.");
+        assert( isset($parameters['user_config']), "Must supply user config for Record_Processor.");
         // TODO - make this configurable
         $this->error_char = "*";
         $this->user_config = $parameters['user_config'];
@@ -86,6 +100,7 @@ class Record_Processor {
         $this->non_repeated_outputs = array();
         $this->insert_db = $this->user_config->get_database_connection('read_write');
         foreach ($this->data_outputs as $data_output) {
+            $data_output->set_parent_record_reader($this);
             $data_output->set_main_output_table($this->output_table);
             $data_output->set_main_table_pk_column($this->primary_key_column);
             if ($data_output instanceof Repeated_Column_Output) {
@@ -95,6 +110,7 @@ class Record_Processor {
                 $this->non_repeated_outputs[] = $data_output;
             }
         }
+        $this->index_in_input_row = NULL;
     }
 
     function set_sheet_external_fields_and_data($sheet_external_fields_and_data) {
@@ -105,6 +121,7 @@ class Record_Processor {
         $this->last_input_row = $row;
     }
 
+    // TODO - enable modify_current_value for this method
     function process_row_assoc($row) {
         $this->start_row($row);
         $last_input_row_errored = FALSE;
@@ -145,14 +162,25 @@ class Record_Processor {
         }
     }
 
+    /*
+     * This should only be called from within the loops in process_row or process_row_assoc
+     *
+     * TODO modify this to work with associative arry processing
+     */
+    public function modify_current_value($value) {
+        //debug_print_backtrace();
+        assert($this->index_in_input_row !== NULL); // "can only modify current value while processing a row");
+        $this->last_input_row[$this->index_in_input_row] = $value;
+    }
+
     function process_row($row) {
         $this->start_row($row);
         $this->data_outputs[0]->reset_for_new_row();
         $too_much_input = FALSE;
         $index = 0;
         $row_len = count($row);
-        for ($i = 0; $i < $row_len; $i++){
-            $value = $row[$i];
+        for ($this->index_in_input_row = 0; $this->index_in_input_row < $row_len; $this->index_in_input_row++){
+            $value = $row[$this->index_in_input_row];
             //echo $value . '<br>';
             try {
                 if ( ! $this->data_outputs[$index]->can_take_more_input()) {
@@ -168,13 +196,13 @@ class Record_Processor {
             } catch (Exception $ex ) {
                 // store error in upload history, add new column to store message about error passed back
                 $last_input_row_errored = TRUE;
-                $this->place_error_char($i);
-                throw new Exception("Exception processing value: " . $ex->getMessage());
+                $this->place_error_char($this->index_in_input_row);
+                throw $ex;
             }
         }
         if ($too_much_input !== FALSE) {
             $last_input_row_errored = TRUE;
-            $this->place_error_char($i);
+            $this->place_error_char($this->index_in_input_row);
             return;
             // TODO - re-enable this
             //throw new Exception("Unexpected extra input at the end of row, starting at '" . $too_much_input . "'");
@@ -182,9 +210,10 @@ class Record_Processor {
         // check to make sure we recieved all the input we expected
         if ($this->data_outputs[$index]->expecting_more_input()){
             $last_input_row_errored = TRUE;
-            $this->place_error_char($i);
+            $this->place_error_char($this->index_in_input_row);
             throw new Exception("Not all expected values were provided.");
         }
+        $this->index_in_input_row = NULL;
     }
 
     private function place_error_char($index) {

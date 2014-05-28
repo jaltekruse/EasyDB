@@ -16,6 +16,10 @@ abstract class Value_Modifier {
     }
 
     abstract function modify_value($value); 
+
+    public function modify_current_value($value) {
+        $this->parent_value_processor->modify_current_value($value);
+    }
    
     // this is mostly unused, just for generating some starting state that cannot be known
     // at construction time 
@@ -206,7 +210,7 @@ class Enum_Validator extends Value_Modifier {
  * 
  * Example: recording dates for observations, if one sheet is used for multiple days,
  * this allows the date to be written once, and all records below it are assumed to be
- * on the same day until one appears with a new value;
+ * on the same day until one appears with a new value.
  *
  */
 class Value_Repeater extends Value_Modifier {
@@ -218,17 +222,22 @@ class Value_Repeater extends Value_Modifier {
     }
 
     function modify_value($value) {
+        $ret = NULL;
         if( $value != ''){
             $this->last_value = $value;
-            return $this->last_value;
+            $ret = $this->last_value;
         } else {
             if ( is_null($this->last_value)) {
                 throw new Exception("No value provided for repeating column.");
             }
             else {
-                return $this->last_value; 
+                $ret = $this->last_value; 
             }
         }
+        // this actually pushes up the value to the raw input, to allow repeated values
+        // to be stored in the upload history
+        $this->modify_current_value($ret);
+        return $ret;
     }
     
 }
@@ -254,7 +263,9 @@ class Time_Validator_Formatter extends Value_Modifier {
         }
         $time_parts = explode(":", $value);
         // commenting this out for now to alow 12:30:00, but not currently validating or storing seconds
-        //assert_true(count($time_parts) == 2, "Error with formatting of a time value.");
+        if (count($time_parts) < 2) {
+            throw new Exception("Error with formatting of a time value.");
+        }
         $min = $time_parts[1];
         $hour = $time_parts[0];
         if (  ! is_numeric($min)  || ! is_numeric($hour) || 
@@ -308,7 +319,7 @@ class Date_Validator_Formatter extends Value_Modifier {
             $this->year_pos = array_search(Date_Parts::YEAR, $date_parts_order);
             $this->month_pos = array_search(Date_Parts::MONTH, $date_parts_order);
             $this->day_pos = array_search(Date_Parts::DAY, $date_parts_order);
-            assert_true( $this->year_pos >= 0 && $this->month_pos >= 0 && $this->day_pos >= 0);
+            assert( $this->year_pos >= 0 && $this->month_pos >= 0 && $this->day_pos >= 0);
         }
         $format = array();
         $format[$this->year_pos] = "%d";

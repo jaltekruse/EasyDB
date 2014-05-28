@@ -14,10 +14,19 @@ abstract class Data_Output {
     // this allows for information known about the incoming data to change processing
     // without requiring a re-construction of the Record_Processor that holds this Data_Output
     protected $disabled;
+    protected $parent_record_reader;
 
     function __construct($ignore_in_duplicate_check){
         $this->ignore_in_duplicate_check = $ignore_in_duplicate_check;
         $this->disabled = FALSE;
+    }
+
+    function set_parent_record_reader($reader) {
+        $this->parent_record_reader = $reader;
+    }
+
+    public function modify_current_value($value) {
+        $this->parent_record_reader->modify_current_value($value);
     }
 
     public function set_main_output_table($table) {
@@ -119,7 +128,7 @@ class Single_Column_Output extends Data_Output {
         $this->output_column_name = $output_column_name;
         $this->value_processor = $value_processor;  
         // TODO - pass down table name from above
-        $value_processor->init("dummy_table_name_fixme");
+        $value_processor->init("dummy_table_name_fixme", $this);
     }
 
     function get_last_val() {
@@ -196,6 +205,13 @@ class Repeated_Column_Output extends Data_Output {
         $this->last_vals = array();
         for ($i = 0; $i < $this->repetition_count; $i++){
             $this->last_vals[$i] = array();     
+        }
+    }
+
+    function set_parent_record_reader($reader) {
+        $this->parent_record_reader = $reader;
+        foreach ($this->data_outputs as $data_output) {
+            $data_output->set_parent_record_reader($this->parent_record_reader);
         }
     }
 
@@ -345,7 +361,7 @@ class Column_Splitter_Output extends Data_Output {
         $this->delimiter = $delimiter;
         foreach($this->value_processors as $value_processor) {
             // TODO - pass down table name from above
-            $value_processor->init("dummy_table_name_fixme");
+            $value_processor->init("dummy_table_name_fixme", $this);
         }
         $this->value_processor_count = count($this->value_processors);
     }
@@ -453,7 +469,7 @@ class Column_Combiner_Output extends Data_Output {
         $this->value_processors = $value_processors;  
         foreach($this->value_processors as $value_processor) {
             // TODO - pass down table name from above
-            $value_processor->init("dummy_table_name_fixme");
+            $value_processor->init("dummy_table_name_fixme", $this);
         }
         $this->value_processor_count = count($this->value_processors);
     }
