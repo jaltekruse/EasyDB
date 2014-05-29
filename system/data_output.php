@@ -195,7 +195,7 @@ class Repeated_Column_Output extends Data_Output {
      * to the parent record in both the duplicate check and insertion.
      */
     function __construct($data_outputs, $repetition_count  = 1000, $relation_column,
-                         $output_table, $ignore_in_duplicate_check){
+                         $output_table, $ignore_in_duplicate_check, $columns_that_cannot_be_null){
         parent::__construct($ignore_in_duplicate_check);
         $this->data_outputs = $data_outputs;
         $this->data_output_count = count($this->data_outputs);
@@ -243,6 +243,13 @@ class Repeated_Column_Output extends Data_Output {
             $this->data_outputs[$this->current_data_output_index]->convert_to_output_format($value);
 
             if ( ! $this->data_outputs[$this->current_data_output_index]->can_take_more_input()) {
+                // TODO - allow users to specify which columns can be null, right now no nulls are allowed in
+                // repetitions
+                if (in_array(NULL, $this->last_vals[$this->current_repetition_count], true)) {
+                    if ($this->blank_at_pos == -1){
+                        $this->blank_at_pos = $this->current_repetition_count;
+                    }
+                }
                 $this->data_outputs[$this->current_data_output_index]->
                     add_values_to_assoc_array($this->last_vals[$this->current_repetition_count]);
                 $this->current_repetition_count++;
@@ -258,8 +265,8 @@ class Repeated_Column_Output extends Data_Output {
             }
 
         } catch (Exception $ex ) {
-            // store error in upload history, add new column to store message about error passed back
-            throw new Exception("Exception processing value: " . $ex->getMessage());
+            // TODO - not sure if there are other things to do here
+            throw $ex;
         }
     }
 
@@ -326,7 +333,7 @@ class Repeated_Column_Output extends Data_Output {
     // it will be overridden for Data_Output instances where multiple outputs are
     // allowed, but not a fixed amount
     function expecting_more_input() {
-        return $this->can_take_more_input();
+        return FALSE;
     }
 }
 

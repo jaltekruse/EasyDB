@@ -15,6 +15,7 @@ class Sheet_Processor {
     
     private $skip_blank_lines;
     private $record_id_column_header;
+    private $disable_duplicate_check;
 
     private $record_table;
     private $upload_attempt_table;
@@ -28,13 +29,22 @@ class Sheet_Processor {
         $this->row_separator = "\n";
         $this->column_separator = "\t";
         $this->skip_blank_lines = TRUE;
-        $this->record_id_column_header = "easydb_record_id";
+        $this->disable_duplicate_check = FALSE;
+        $this->record_id_column_header = "record_id";
         $this->record_table = 'records';
         $this->upload_attempt_table = 'upload_attempts';
     }
 
     function check_for_full_sheet_resubmission($data, $external_columns) {
         
+    }
+
+    function disable_duplicate_check(){
+        $this->disable_duplicate_check = TRUE;
+    }
+
+    function enable_duplicate_check() {
+        $this->disable_duplicate_check = FALSE;
     }
 
     /*
@@ -78,11 +88,9 @@ class Sheet_Processor {
         $this->external_vals_processor->process_row_assoc($external_columns);
         $this->record_processor->set_sheet_external_fields_and_data(
             $this->external_vals_processor->generate_columns_and_data_lists());
-        echo $data;
         // upload history also uses external columns, but does not need the upload_date in the array
         unset($external_columns['upload_date']);
         $lines = explode( $this->row_separator, $data);
-        print_r($lines);
         $handling_resubmitted_records = FALSE;
         // keep track of the number of lines that should be skipped at the beginning of the sheet
         // including blanks and the header
@@ -97,11 +105,11 @@ class Sheet_Processor {
             // check if the column header for reading re-sumbitted data was reached, the column
             // name chosen for the header of the records id column should not appear in the dataset!
             // especially in the first column as this will corrupt the first line of input
-            if ($row[0] == $this->record_id_column_header) {
+            if (trim($row[0]) == $this->record_id_column_header) {
                 $handling_resubmitted_records = TRUE;
                 // remove the column to allow the user defined header search to avoid
                 // having to work around it
-                array_unshift($row);
+                array_shift($row);
             }
 
             // The first column that is not blank is considered either the headers or the first
@@ -123,11 +131,9 @@ class Sheet_Processor {
         // change in the future
         $this->add_sheet_processing_metadata($external_columns);
         $line_count = count($lines);
-        echo $line_count . ' ' . $lines_to_skip;
         for ($i = $lines_to_skip; $i < $line_count; $i++) {
             $record_id = '';
             $line = $lines[$i];
-            echo 'proess line<br>' . $line;
 			// ignore blank lines
             if (trim($line) == "") continue;
 
@@ -146,24 +152,27 @@ class Sheet_Processor {
             try {
                 $this->record_processor->process_row($row);
             } catch (Exception $ex) {
-                echo "Error processing row - " . $ex->getMessage();
                 $to_save = $this->record_processor->get_last_input_row();
                 // add back the record id
                 array_unshift($to_save, $record_id);
 	            $this->save_upload_attempt_in_history($to_save, 'error', '1', $record_id, $external_columns);
                 continue;
             }
-            $dup_check = $this->record_processor->generate_duplicate_check();
-            $result = $this->db->query($dup_check);
-            if ( ! $result ) $dev_err .=  "ERROR WITH DUP CHECK!! : " . $this->db->error;
-            else {
-                if ($result->num_rows > 0) {
-                    $this->save_upload_attempt_in_history($this->record_processor->get_last_input_row(), 'duplicate', '1', $record_id, $external_columns);
-                    continue;
-                }     
+            if ( ! $this->disable_duplicate_check ) {
+                $dup_check = $this->record_processor->generate_duplicate_check();
+                $result = $this->db->query($dup_check);
+                if ( ! $result ) $dev_err .=  "ERROR WITH DUP CHECK!! : " . $this->db->error;
+                else {
+                    if ($result->num_rows > 0) {
+                        $to_save = $this->record_processor->get_last_input_row();
+                        // add back the record_id
+                        array_unshift($to_save, $record_id);
+                        $this->save_upload_attempt_in_history($to_save, 'duplicate', '1', $record_id, $external_columns);
+                        continue;
+                    }     
+                }
             }
             $this->record_processor->process_row($row);
-            print_r($this->record_processor->output_to_array());
             $new_observation_id = $this->record_processor->insert();
             $result = $this->db->query("update scan_observations set record_id = '" . $record_id . "' where observation_id = '" . $new_observation_id . "'");	
             if ( $result ){ } // success
@@ -185,7 +194,6 @@ class Sheet_Processor {
     // assumes that record_fields has 
     function save_upload_attempt_in_history($input, $status, $is_webapp_output, $record_id, $record_fields){
         $uploader_id = $record_fields['uploader_id'];
-        print_r($record_fields);
         if (is_null($record_id) || ! ctype_digit(trim($record_id))){
             unset($record_fields['uploader_id']);
             $record_insert_query = Record_Processor::insert_sql_based_on_assoc_array($record_fields, 'records');
@@ -209,7 +217,6 @@ class Sheet_Processor {
             return false; // do not do the next query, it will fail due to a bad foreign key
         }
         $sql = "INSERT INTO upload_attempts (upload_date, uploader_id, record_id, is_webapp_output, status, ";
-        print_r($input);
         for($i = 1; $i <= count($input); $i++){
             $sql .= "col_" . $i;
             if ( $i != count($input))
@@ -218,8 +225,6 @@ class Sheet_Processor {
         $sql .= ") values (";
         $sql .= "'" . $this->current_time . "', '" . $uploader_id . "', '". $record_id . "','" . 
             $is_webapp_output . "','" . $status . "','";
-        echo "save record<br>";
-        print_r($input);
         $sql .= implode("','", $input) . "')"; 
         //echo $sql . "<br>";
         $result = $this->db->query($sql);

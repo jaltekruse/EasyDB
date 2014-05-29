@@ -289,8 +289,10 @@ class Record_Processor {
         $child_insert_sql = $this->insert_child_record_sql($main_record_id);
         foreach ($child_insert_sql as $sql){
             $result = $db->query($sql);
-            if (! $result)
+            if (! $result) {
+                print_r($this->last_input_row);
                 echo "error with child record insertion:" . $db->error . "<br>\n";
+            }
         }
         return $main_record_id;
     }
