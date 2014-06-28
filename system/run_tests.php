@@ -54,7 +54,7 @@ foreach ($unit_test_classes as $unit_tests) {
         }
     }
 }
-echo "All SYSTEM unit tests have been run.<br>\n";
+echo "<h2>All SYSTEM unit tests have been run.</h2><br>\n";
 
 // modified version of code available at
 // http://stackoverflow.com/questions/3316899/try-catch-with-php-warnings
@@ -179,8 +179,26 @@ class Unit_Tests {
         // Now try to insert a record that uses this for entry for a code
 
         $animal_processor = $this->animal_processor($db, $this->user_config);
-        $test_data = "[\"5-5-2005\", \" T \", \"elderly\", \"jimmy\"]";
-        $test_data_array = json_decode($test_data, true /* parse into associative arrays*/);
+        $test_data_array = array("5-5-2005", " T ", "elderly", "jimmy");
+        $this->test_animal_insert_and_dup_check($test_data_array, $animal_processor, $db);
+
+        $test_data_array = array("5-5-2005", " T ", "", "Ralph");
+        $this->test_animal_insert_and_dup_check($test_data_array, $animal_processor, $db);
+
+        // test unique enforceer
+        // re-create the processor so the in memory-cache of code values is refreshed
+        $animal_processor = $this->animal_processor($db, $this->user_config);
+        try {
+            $animal_processor->process_row($test_data_array);
+        } catch (Exception $ex) {
+            $this->assertEquals(
+                "Code already appears in the 'animals_easy_db_test_temp' table.", 
+                $ex->getMessage()); 
+        }
+    }
+
+    private function test_animal_insert_and_dup_check($test_data_array, $animal_processor, $db) {
+
         $animal_processor->process_row($test_data_array);
         $result = $db->query($animal_processor->insert_main_record_sql());
         if ( ! $result ) echo 'Error with insert:' . $db->error . '<br>';
@@ -197,17 +215,6 @@ class Unit_Tests {
         if ( ! $result ) echo 'Error with duplicate check:' . $db->error . '<br>';
         else {
             $this->assertEquals(1, $result->num_rows, "Duplicate check did not find a matching record.");
-        }
-
-        // test unique enforceer
-        // re-create the processor so the in memory-cache of code values is refreshed
-        $animal_processor = $this->animal_processor($db, $this->user_config);
-        try {
-            $animal_processor->process_row($test_data_array);
-        } catch (Exception $ex) {
-            $this->assertEquals(
-                "Code already appears in the 'animals_easy_db_test_temp' table.", 
-                $ex->getMessage()); 
         }
     }
 

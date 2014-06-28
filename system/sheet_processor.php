@@ -1,5 +1,6 @@
 <?php
 include_once($_SERVER['DOCUMENT_ROOT'] . "/easy_db/system/record_processor.php");
+include_once($_SERVER['DOCUMENT_ROOT'] . "/easy_db/system/db_util/mysql_util.php");
 
 class Sheet_Processor { 
 

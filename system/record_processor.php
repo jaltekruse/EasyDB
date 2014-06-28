@@ -244,11 +244,7 @@ class Record_Processor {
         // both guarenteed to return values in the same order
         foreach ( $output_array as $field => $value) {
             $lists['fields'][] = $field;
-
-            if (is_null($value))
-                $lists['data'][] = "NULL";
-            else
-                $lists['data'][] = "'" . $value . "'";
+            $lists['data'][] = MySQL_Utilities::quoted_val_or_null($value);
         }
         $lists['fields'] = "`" . implode('`, `', $lists['fields']) . "`";
         $lists['data'] = implode(', ', $lists['data']);
@@ -329,10 +325,7 @@ class Record_Processor {
             $external_data = ", " . $external_fields_and_data['data'];
         }
         foreach ($values as $key=>$val) {
-            if (is_null($val))
-                $quoted_vals[$key] = "NULL";
-            else
-                $quoted_vals[$key] = "'" . $val . "'";
+            $quoted_vals[$key] = MySQL_Utilities::quoted_val_or_null($val);
         }
         $sql = "insert into " . $table . " (`" . 
             implode("`,`", array_keys($values)) . "`" . $external_fields . ") VALUES ";

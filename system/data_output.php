@@ -98,20 +98,21 @@ abstract class Data_Output {
     // TODO !! - these do not appear to be handling NULL appropriately!
     // need to use IS NULL syntax, NULL does not work with '='
     function duplicate_check_sql_repeated($intermediate_table = "") {
-        $sql = "";
-        if ($intermediate_table != "") 
-            $sql = " " . $intermediate_table . ".";
-        $sql .= $this->output_column_name . " = '" . $this->get_last_val() . "' ";
-        return $sql;
+        return $this->gen_dup_check($intermediate_table);
     }
 
     // optional paramerter allows this functionality to be re-used for reapeated columns, which
     // need to make an intermediate table to check for a records that matches all of the repetions
     function duplicate_check_sql($intermediate_table = "") {
+        return $this->gen_dup_check($intermediate_table);
+    }
+
+    private function gen_dup_check($intermediate_table) {
         $sql = "";
         if ($intermediate_table != "") 
             $sql = " " . $intermediate_table . ".";
-        $sql .= $this->output_column_name . " = '" . $this->get_last_val() . "' ";
+        $sql .= $this->output_column_name;
+        $sql .= MySQL_Utilities::quoted_val_or_null_with_comparison_op($this->get_last_val());
         return $sql;
     }
 
@@ -418,11 +419,8 @@ class Column_Splitter_Output extends Data_Output {
                 $sql = " " . $intermediate_table . ".";
             else
                 $sql = "";
-            if ( is_null($this->$last_val_getter($i)) )
-                $value = "NULL";
-            else
-                $value = "'" . $this->$last_val_getter($i) . "'"; 
-            $sql .= $this->value_processors[$i]->get_column() . " = " . $value . " ";
+            $sql .= $this->value_processors[$i]->get_column();
+            $sql .= MySQL_Utilities::quoted_val_or_null_with_comparison_op($this->$last_val_getter($i));
             $sql_wheres[] = $sql;
         }
         return implode(" AND ", $sql_wheres);
