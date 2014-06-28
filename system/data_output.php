@@ -95,6 +95,8 @@ abstract class Data_Output {
         $this->last_val = $val[$this->output_column_name];
     }
 
+    // TODO !! - these do not appear to be handling NULL appropriately!
+    // need to use IS NULL syntax, NULL does not work with '='
     function duplicate_check_sql_repeated($intermediate_table = "") {
         $sql = "";
         if ($intermediate_table != "") 
@@ -274,6 +276,8 @@ class Repeated_Column_Output extends Data_Output {
         throw new Exception("Unsupported operation");
     }
 
+    // TODO !! - these do not appear to be handling NULL appropriately!
+    // need to use IS NULL syntax, NULL does not work with '='
     // TODO - modify this to correctly check for duplicates where there are values that appear more
     // than once. right now a releated list of ("J", "J", "AD") will incorrectly report as a duplicate for ("J", "AD")
     function duplicate_check_sql($unused_intermediate_table = NULL) {
@@ -389,38 +393,40 @@ class Column_Splitter_Output extends Data_Output {
         $this->last_vals = $val;
     }
 
+    function get_from_assoc_last_vals($index) {
+        return $this->last_vals[$this->value_processors[$i]->get_column()];
+    }
+
+    function get_from_numeric_array_last_vals($index) {
+        return $this->last_vals[$i];
+    }
+
+    // TODO !! - these do not appear to be handling NULL appropriately!
+    // need to use IS NULL syntax, NULL does not work with '='
     function duplicate_check_sql_repeated($intermediate_table = "") {
-        $sql_wheres = array();
-        for($i = 0; $i < $this->value_processor_count; $i++) {
-            if ($intermediate_table != "") 
-                $sql = " " . $intermediate_table . ".";
-            else
-                $sql = "";
-            if ( is_null($this->last_vals[$this->value_processors[$i]->get_column()]) )
-                $value = "NULL";
-            else
-                $value = "'" . $this->last_vals[$this->value_processors[$i]->get_column()] . "'"; 
-            $sql .= $this->value_processors[$i]->get_column() . " = " . $value . " ";
-            $sql_wheres[] = $sql;
-        }
-        return implode(" AND ", $sql_wheres);
+        return gen_dup_check($intermediate_table, "get_from_assoc_last_vals");
     }
 
     function duplicate_check_sql($intermediate_table = "") {
+        return gen_dup_check($intermediate_table, "get_from_numeric_array_last_vals");
+    }
+
+    private function gen_dup_check($intermediate_table, $last_val_getter) {
         $sql_wheres = array();
         for($i = 0; $i < $this->value_processor_count; $i++) {
             if ($intermediate_table != "") 
                 $sql = " " . $intermediate_table . ".";
             else
                 $sql = "";
-            if ( is_null($this->last_vals[$i]) )
+            if ( is_null($this->$last_val_getter($i)) )
                 $value = "NULL";
             else
-                $value = "'" . $this->last_vals[$i] . "'"; 
+                $value = "'" . $this->$last_val_getter($i) . "'"; 
             $sql .= $this->value_processors[$i]->get_column() . " = " . $value . " ";
             $sql_wheres[] = $sql;
         }
         return implode(" AND ", $sql_wheres);
+
     }
 
     function convert_to_output_format($value) {

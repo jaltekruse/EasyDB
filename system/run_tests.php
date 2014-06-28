@@ -228,6 +228,16 @@ class Unit_Tests {
                 $record_processor->insert_main_record_sql());
     }
 
+    // TODO - set up basic forms, hook up to assoc array processing
+    
+    // TODO - create table defintion statements based on value processor definition
+
+    // TODO - add test (and features necessary) to handle processing a repeated field fed data from
+    // a map, thinking I will likely have to define a naming convetion for list elements, might want to see
+    // if I can leverage the included php hanlding of multi-select fields, although this may be limited as I would like
+    // to support multi-field repetitions, as well as several repetitions in a single form (which would not work using the,
+    // conventions for the multi-selects as parallel arrays)
+
     function animal_processor($db, $user_config) {
         $data_outputs = array(
             // date time
