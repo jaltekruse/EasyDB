@@ -1,5 +1,5 @@
 <?php
-include_once("record_processor.php");
+include_once($_SERVER['DOCUMENT_ROOT'] . "/easy_db/system/record_processor.php");
 
 class Sheet_Processor { 
 

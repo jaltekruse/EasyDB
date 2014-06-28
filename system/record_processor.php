@@ -1,5 +1,5 @@
 <?php
-include_once("data_output.php");
+include_once($_SERVER['DOCUMENT_ROOT'] . "/easy_db/system/data_output.php");
 
 class Record_Processor {
 

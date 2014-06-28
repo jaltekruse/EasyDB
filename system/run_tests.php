@@ -1,8 +1,8 @@
 <?php
 
-include_once("sheet_processor.php");
-include_once("../user/user_config.php");
-include_all_tests("../user/UDFs/tests");
+include_once($_SERVER['DOCUMENT_ROOT'] . "/easy_db/system/sheet_processor.php");
+include_once($_SERVER['DOCUMENT_ROOT'] . "/easy_db/user/user_config.php");
+include_all_tests($_SERVER['DOCUMENT_ROOT'] . "/easy_db/user/UDFs/tests");
 
 function include_all_tests($folder){
     foreach (glob("{$folder}/*.php") as $filename)
@@ -35,17 +35,21 @@ foreach( get_declared_classes() as $class ) {
 // TODO - user config is available in the global namesapce right now, may want to move it
 $old_error_handler = set_error_handler("myErrorHandler");
 $unit_test_classes[0]->init_tests();
+
 foreach ($unit_test_classes as $unit_tests) {
-    $unit_test_methods = get_class_methods($unit_tests);
-    foreach ($unit_test_methods as $test) {
-        // tests must start with the word test
-        if ( strpos($test, 'test') === 0 ){
-            echo "Running test: " . $test . "<br>\n"; 
-            try {
-                $unit_tests->$test();
-                echo '<span style="color:blue">SUCCESS</span><br>';
-            } catch (Exception $ex){
-                echo $ex->getMessage() . "<br>\n";
+    $reflection = new ReflectionClass('Unit_Tests');
+    foreach ($reflection->getMethods(ReflectionMethod::IS_PUBLIC) as $method) {
+        if ($method->class == $reflection->getName()) {
+            if ( strpos($method->name, 'test') !== FALSE) {
+                echo "Running test: " . $method->name . "<br>\n"; 
+                $name = $method->name;
+                try {
+                    $unit_tests->$name();
+                    echo '<span style="color:blue">SUCCESS</span><br>';
+                } catch (Exception $ex){
+                    echo '<span style="color:red">Test Failure: </span><br>';
+                    echo $ex->getMessage() . "<br>\n";
+                }
             }
         }
     }
@@ -82,11 +86,14 @@ class Unit_Tests {
 
     protected function assertEquals($expected, $actual, $message = "") {
         if ($expected != $actual) {
-            echo "Error: expected value <br>'";
-            print_r($expected);
-            echo "'<br> but received <br>'";
-            print_r($actual);
-            echo "'" . ($message != "" ? " - " . $message : "");
+            $ret = "";
+            $ret .= "Error: expected value <br>'";
+            $ret .= print_r($expected, TRUE);
+            $ret .= "'<br> but received <br>'";
+            $ret .= print_r($actual, TRUE);
+            $ret .= "'" . ($message != "" ? " - " . $message : "");
+            $ret .= "<br>\n";
+            throw new Exception($ret);
         }
     }
 
@@ -220,11 +227,11 @@ class Unit_Tests {
         $external_fields_processor->process_row_assoc($test_data_array);
         $output_fields_and_data = $external_fields_processor->generate_columns_and_data_lists();
         $this->assertEquals(array( 'fields' => '`time`, `time2`, `time3`, `date`',
-            'data' => '1:30, 14:00, 5:30, 2005-5-5' ), $output_fields_and_data);
+            'data' => "'1:30', '14:00', '5:30', '2005-5-5'" ), $output_fields_and_data);
         $record_processor->set_sheet_external_fields_and_data($output_fields_and_data);
         $this->assertEquals("insert into animals_easy_db_test_temp " . 
             "(`birthday`,`is_male`,`age_category_id`,`animal_code`, `time`, `time2`, `time3`, `date`) ". 
-            "VALUES ('2005-5-5','0',NULL,'jane', 1:30, 14:00, 5:30, 2005-5-5)",
+            "VALUES ('2005-5-5','0',NULL,'jane', '1:30', '14:00', '5:30', '2005-5-5')",
                 $record_processor->insert_main_record_sql());
     }
 
@@ -266,7 +273,7 @@ class Unit_Tests {
         $processor_config = $this->default_processor_config;
         $processor_config['modifiers'] = array(new Date_Validator_Formatter());
         $data_output = new Repeated_Column_Output( array( new Single_Column_Output( 
-            new Value_Processor($db, $this->user_config, $processor_config), "time", FALSE)), 3, 'foreign_key_column', 'table', TRUE) ;
+            new Value_Processor($db, $this->user_config, $processor_config), "time", FALSE)), 3, 'foreign_key_column', 'table', TRUE, FALSE);
         $record_processor = new Record_Processor(array('user_config' => $this->user_config,
         'data_outputs' => array($data_output), 'output_table' => 'unused','primary_key_column' => 'unused'));
         $record_processor->process_row(array("22/3/2012", "22/3/2012", "22/3/2012"));
@@ -285,7 +292,7 @@ class Unit_Tests {
         
         $data_output = new Column_Combiner_Output($val_processors, "date_time", FALSE);
 
-        $data_output = new Repeated_Column_Output( array( $data_output), 2, 'foreign_key_column', 'table', FALSE);
+        $data_output = new Repeated_Column_Output( array( $data_output), 2, 'foreign_key_column', 'table', FALSE, FALSE);
         $record_processor = new Record_Processor(array('user_config' => $this->user_config,
             'data_outputs' => array($data_output), 'output_table' => 'unused','primary_key_column' => 'unused'));
 
@@ -298,7 +305,7 @@ class Unit_Tests {
         $val_processors = array();
         $processor_config = $this->default_processor_config;
         $data_output = new Column_Splitter_Output( array(), "split_column", ",", FALSE);
-        $data_output = new Repeated_Column_Output( array( $data_output), 2, 'foreign_key_column', 'table', FALSE);
+        $data_output = new Repeated_Column_Output( array( $data_output), 2, 'foreign_key_column', 'table', FALSE, FALSE);
         $record_processor = new Record_Processor(array('user_config' => $this->user_config, 
             'data_outputs' => array($data_output), 'output_table' => 'unused','primary_key_column' => 'unused'));
 
@@ -504,4 +511,4 @@ class Unit_Tests {
     }
 
 }
-?>
+

@@ -1,5 +1,5 @@
 <?php
-include_once("value_processor.php");
+include_once($_SERVER['DOCUMENT_ROOT'] . "/easy_db/system/value_processor.php");
 
 // TODO  enhance these to allow for map to determine input/output columns
 abstract class Data_Output {
@@ -189,14 +189,14 @@ class Repeated_Column_Output extends Data_Output {
     private $blank_at_pos;
 
     /*
-     * takes a list of data outputs to be used repeatedly. Second parameter is optional if the
-     * number of repetitions is known. It default to 1000, anything close to this is stretching the
-     * usefulness of a relational database and this software for loading data.
+     * takes a list of data outputs to be used repeatedly.
      *
      * The relation column is used to hook up each of the child records that represents this repeated column
      * to the parent record in both the duplicate check and insertion.
+     *
+     * TODO - implement columns_that_cannot_be_null
      */
-    function __construct($data_outputs, $repetition_count  = 1000, $relation_column,
+    function __construct($data_outputs, $repetition_count, $relation_column,
                          $output_table, $ignore_in_duplicate_check, $columns_that_cannot_be_null){
         parent::__construct($ignore_in_duplicate_check);
         $this->data_outputs = $data_outputs;
@@ -394,21 +394,21 @@ class Column_Splitter_Output extends Data_Output {
     }
 
     function get_from_assoc_last_vals($index) {
-        return $this->last_vals[$this->value_processors[$i]->get_column()];
+        return $this->last_vals[$this->value_processors[$index]->get_column()];
     }
 
     function get_from_numeric_array_last_vals($index) {
-        return $this->last_vals[$i];
+        return $this->last_vals[$index];
     }
 
     // TODO !! - these do not appear to be handling NULL appropriately!
     // need to use IS NULL syntax, NULL does not work with '='
     function duplicate_check_sql_repeated($intermediate_table = "") {
-        return gen_dup_check($intermediate_table, "get_from_assoc_last_vals");
+        return $this->gen_dup_check($intermediate_table, "get_from_assoc_last_vals");
     }
 
     function duplicate_check_sql($intermediate_table = "") {
-        return gen_dup_check($intermediate_table, "get_from_numeric_array_last_vals");
+        return $this->gen_dup_check($intermediate_table, "get_from_numeric_array_last_vals");
     }
 
     private function gen_dup_check($intermediate_table, $last_val_getter) {
