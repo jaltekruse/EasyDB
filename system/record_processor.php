@@ -99,6 +99,7 @@ class Record_Processor {
         $this->repeated_outputs = array();
         $this->non_repeated_outputs = array();
         $this->insert_db = $this->user_config->get_database_connection('read_write');
+        MySQL_Utilities::set_db($this->insert_db);
         foreach ($this->data_outputs as $data_output) {
             $data_output->set_parent_record_reader($this);
             $data_output->set_main_output_table($this->output_table);
