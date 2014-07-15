@@ -22,6 +22,7 @@ class Sheet_Processor {
     private $upload_attempt_table;
     private $current_time;
     private $db;
+    private $resubmit_dup_count_threshold;
 
     function __construct($db, $record_processor, $external_vals_processor) {
         $this->record_processor = $record_processor;
@@ -34,6 +35,7 @@ class Sheet_Processor {
         $this->record_id_column_header = "record_id";
         $this->record_table = 'records';
         $this->upload_attempt_table = 'upload_attempts';
+        $this->resubmit_dup_count_threshold = 0.5;
     }
 
     function check_for_full_sheet_resubmission($data, $external_columns) {
@@ -123,6 +125,44 @@ class Sheet_Processor {
             }
         }
 
+        // TODO - add a test for this
+        // process the sheet once to see what percentage of the records return as duplicates, if it is beyond
+        // the threshold set the sheet is assumed to be incorrectly re-uploaded by a user and is rejected before anything
+        // is added to the database
+        $dup_count = 0;
+        $error_count = 0;
+        if ( ! $this->disable_duplicate_check && ! $handling_resubmitted_records) {
+            $this->add_sheet_processing_metadata($external_columns);
+            $line_count = count($lines);
+            for ($i = $lines_to_skip; $i < $line_count; $i++) {
+                $record_id = '';
+                $line = $lines[$i];
+                // ignore blank lines
+                if (trim($line) == "") continue;
+
+                $row = explode("\t", $line);
+                try {
+                    $this->record_processor->process_row($row);
+                } catch (Exception $ex) {
+                    $error_count++;
+                    continue;
+                }
+                $dup_check = $this->record_processor->generate_duplicate_check();
+                $result = $this->db->query($dup_check);
+                if ( ! $result ) $dev_err .=  "ERROR WITH DUP CHECK!! : " . $this->db->error;
+                else {
+                    if ($result->num_rows > 0) {
+                        $dup_count++;
+                        continue;
+                    }
+                }
+            }
+            if ( (float) $dup_count / ($line_count - $error_count) > $resubmit_dup_count_threshold ) {
+                throw new Exception("High percentage of duplicates found, assuming errant sheet re-upload."
+                    . " Nothing new was added to the upload history or final dataset.");
+            }
+        }
+
         // this method is used to add columns that are needed to process the records if they are re-submitted,
         // but are not stored as part of the records themselves. Currenty this is just used to add the repetition
         // counts for repeated columns. This call is placed here so the sheet processors can use the 
@@ -143,8 +183,7 @@ class Sheet_Processor {
                 $record_id = trim(array_shift($row));
             }
 
-			// save this line in the history of uploads, unlike before I am saving all uploaded raw data as well as
-            // application output
+			// save this line in the history of uploads, all uploaded raw data is saved as well as application output
 			$record_id = $this->save_upload_attempt_in_history($row, '', '0', $record_id, $external_columns);	
 			if ($record_id == false){
 				continue; // there was an issue with the record_id
@@ -192,7 +231,7 @@ class Sheet_Processor {
     }
 
     // TODO - deal with invalid record numbers passed in
-    // assumes that record_fields has 
+    // TODO - refactor sql query generation to use library functions defined elsewhere
     function save_upload_attempt_in_history($input, $status, $is_webapp_output, $record_id, $record_fields){
         $uploader_id = $record_fields['uploader_id'];
         if (is_null($record_id) || ! ctype_digit(trim($record_id))){

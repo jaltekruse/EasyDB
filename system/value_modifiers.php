@@ -4,7 +4,13 @@
 
 abstract class Value_Modifier {
 
-    // this is set in the constructor of the parent as all 
+    // this is set in the constructor of the parent
+    // TODO - probably want to make this a constructor parameter, this isn't
+    // a clean initialization pattern
+    // TODO - keep an eye on how this is used, I am re-using one of these classes in
+    // a value splitter to verify a splitting criteria. This seems like a reasonable
+    // use case for these classes, but need to be careful about requiring this
+    // to be set 
     protected $parent_value_processor;
 
     function set_parent_value_processor(&$value_processor) {
@@ -118,6 +124,15 @@ class Boolean_Validator extends Value_Modifier {
 // the filenames table to allow them to upload a sheet
 // For this be sure to put a validator ahead of it to make sure it follows the formatting convention for filenames
 
+// TODO - Currently working on a solution for handling code values with a suffix. I want to break off the suffix
+// into another column, but this would be handled by a splitter. Makes me wonder if I should merge the concepts
+// of data outputs and value modifiers. Simply having a single structure that takes in data, and exports it
+// as one or more columns, for now just going to use an instance of this class inside of a splitter.
+// One small problem with this, the init method referes to the parent value processor
+//
+// Would like to re-use this
+// code with the additional functionality of being able to limit the codes accepted by some other criteria
+// on the table.
 /*
  * Designed to validate a coded value where the codes are stored in a dependent table
  *
@@ -130,10 +145,12 @@ class Code_Value_Validator extends Value_Modifier {
     protected $table;
     protected $code_column;
     protected $id_column;
+    protected $where_clause;
 
-    function __construct($table, $case_sensitive = FALSE) {
+    function __construct($table, $case_sensitive = FALSE, $where_clause = "") {
         $this->case_sensitive = $case_sensitive;
         $this->table = $table;
+        $this->where_clause = $where_clause;
     }
     
     public function init() {
@@ -142,7 +159,7 @@ class Code_Value_Validator extends Value_Modifier {
         $this->id_column = $this->parent_value_processor->get_id_column_for_table($this->table);
         $this->valid_code_values = array(); 
         $this->valid_id_values = array(); 
-        $query = "select " . $this->code_column . "," . $this->id_column . " from " . $this->table;
+        $query = "select " . $this->code_column . "," . $this->id_column . " from " . $this->table . " " . $this->where_clause;
         $result = $db->query($query);
         if ($result) {
             for ($i = 0; $i < $result->num_rows; $i++) {
@@ -165,6 +182,16 @@ class Code_Value_Validator extends Value_Modifier {
         } else {
             throw new Exception("Code '" . $value . "' not found in the '" . $this->table . "' table."); 
         }
+    }
+
+    // This method can be used for cases where we need to verify codes, but do not want to pay the
+    // cost of exception handling, or do not need the numeric primary key returned
+    public function check_code($value) {
+        if ( isset($this->valid_code_values[$value]) )
+            return true;
+        else
+            return false;
+
     }
 }
 

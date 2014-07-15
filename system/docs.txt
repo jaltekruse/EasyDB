@@ -1,0 +1,20 @@
+============
+Easy DB Docs
+============
+Author : Jason Altekruse
+Contributors :
+
+Current tasks:
+
+Known fragile points of system:
+- in sheet processor there is a value stored as the expected column header for the id column
+  which should appear in the case of data being re-submitted with error corrections
+    - this value cannot appear in the first column of the data
+    - currently this header is assumed to be something like record_id
+    - might want to de-couple this from the rest of the library, as many use cases
+      will not need a plain text upload history, where the data is validated on the
+      client side, or with immediate feedback from the server
+        - its not very coupled to the system as is
+        - there is the duplicate check that is worked into the value processing system
+          but this could be useful for other applications
+
