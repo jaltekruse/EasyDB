@@ -61,6 +61,19 @@ class UTF8_Decoder extends Value_Modifier {
     }
 }
 
+// http://stackoverflow.com/questions/3377537/checking-if-a-string-contains-an-integer
+class Integer_Validator extends Value_Modifier {
+
+    function modify_value($value) {
+        if((string)(int) $value == $value) { 
+            return $value; 
+        }
+        else {
+            throw new Exception("Input was not an integer");
+        }
+    }
+}
+
 /*
  * Checks if a value is a blank string and returns as php NULL value if it is.
  * As stripping spaces is a default modifier, this functionality is not included here, if
@@ -159,7 +172,9 @@ class Code_Value_Validator extends Value_Modifier {
         $this->id_column = $this->parent_value_processor->get_id_column_for_table($this->table);
         $this->valid_code_values = array(); 
         $this->valid_id_values = array(); 
-        $query = "select " . $this->code_column . "," . $this->id_column . " from " . $this->table . " " . $this->where_clause;
+        $query = "select " . $this->code_column . "," . $this->id_column . " from " . $this->table;
+        if ($this->where_clause != "")
+            $query .= " WHERE " . $this->where_clause;
         $result = $db->query($query);
         if ($result) {
             for ($i = 0; $i < $result->num_rows; $i++) {
@@ -187,6 +202,7 @@ class Code_Value_Validator extends Value_Modifier {
     // This method can be used for cases where we need to verify codes, but do not want to pay the
     // cost of exception handling, or do not need the numeric primary key returned
     public function check_code($value) {
+        if ( ! $this->case_sensitive ) $value = strtolower($value);
         if ( isset($this->valid_code_values[$value]) )
             return true;
         else

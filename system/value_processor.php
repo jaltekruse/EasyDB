@@ -34,6 +34,10 @@ class Value_Processor {
         return $this->db;
     }
 
+    public function get_user_config() {
+        return $this->user_config;
+    }
+
     public function get_code_column_for_table( $table) {
        return $this->user_config->get_code_column_for_table($table);
     }
