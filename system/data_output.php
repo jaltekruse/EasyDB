@@ -430,6 +430,11 @@ class Column_Splitter_Output extends Data_Output {
     function convert_to_output_format($value) {
         try {
             $curr_vals = $this->split_value($value);
+            // TODO - make sure this is what should be done in this case, currently if the number of validators does not
+            // match the number of split values then no processing is done on them, may want to cycle through the smaller list
+            // of processor instead if they do not match up (this makes sense particularly in the case where there is just one processor,
+            // but this can also be handled by wrapping this data output with a Repeated_Data_Output. Also think about using a subset of
+            // the processors if the list is too big (this may cause confusion)
             if (count($curr_vals) == $this->value_processor_count){
                 foreach ( $curr_vals as $split_val ) {
                     $this->last_vals[$this->get_current_index()] = $this->value_processors[$this->get_current_index()]->process_value($split_val); 
