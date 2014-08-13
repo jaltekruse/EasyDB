@@ -31,6 +31,9 @@ abstract class Value_Modifier {
     // at construction time 
     public function init() {}
 
+    // TODO - figure out if we need a reset for this, right now it is assumed that this will
+    // only be called after a call to modify_current_value, which should set the state inside
+    // of the modifier correctly
     public function stop_subsequent_valdiators() {
         return FALSE; 
     }
@@ -104,6 +107,25 @@ class Null_Validator extends Value_Modifier {
 
 }
 
+class Null_Word_Validator extends Value_Modifier {
+
+    protected $last_val_null;
+
+    function modify_value($value) {
+        if ( strcasecmp($value, "null") == 0) {
+            $this->last_val_null = TRUE;
+            return NULL;
+        } else {
+            $this->last_val_null = FALSE;
+            return $value;
+        }
+    } 
+
+    public function stop_subsequent_valdiators() {
+        return $this->last_val_null; 
+    }
+
+}
 
 class Boolean_Validator extends Value_Modifier {
 
@@ -185,7 +207,6 @@ class Code_Value_Validator extends Value_Modifier {
             }
         } 
         else {
-            echo $query;
             throw new Exception("error reading from database: " . $db->error); 
         }
     }
@@ -344,6 +365,8 @@ class Date_Validator_Formatter extends Value_Modifier {
     private $date_parts;
     private $format_strings;
 
+    const ERROR_MESSAGE = "Error with date formatting.";
+
     /*
      * Construts a date validator/formatter.
      *
@@ -377,7 +400,6 @@ class Date_Validator_Formatter extends Value_Modifier {
         // extract the date and format it for database insertion
         // we use a class variable to store the actual data to prevent creating a bunch of arrays
         // but we will create a local reference variable to avoid type $this eveywhere
-
         foreach ($this->format_strings as $format) {
             sscanf($value, $format, $date_parts[0], $date_parts[1], $date_parts[2]);
             if ($date_parts[1] != '') break;
@@ -387,7 +409,7 @@ class Date_Validator_Formatter extends Value_Modifier {
         if ( 0 + $date_parts[$this->month_pos] == 0 ) {
             $date_parts[$this->month_pos] = $this->get_month($date_parts[$this->month_pos]);
             if ( is_null($date_parts[$this->month_pos]) ) {
-                throw new Exception("Error with date formatting.");
+                throw new Exception(self::ERROR_MESSAGE);
             }
         }
         // check that the month is valid
@@ -396,7 +418,7 @@ class Date_Validator_Formatter extends Value_Modifier {
             0 + $date_parts[$this->day_pos] == 0 ||
             0 + $date_parts[$this->year_pos] == 0 ||
             ! checkdate($date_parts[$this->month_pos], $date_parts[$this->day_pos], $date_parts[$this->year_pos])  ){
-            throw new Exception("Error with date formatting.");
+            throw new Exception(self::ERROR_MESSAGE);
         }
         else{
             $date = $this->four_digit_year($date_parts[$this->year_pos]) .
@@ -414,22 +436,24 @@ class Date_Validator_Formatter extends Value_Modifier {
         if ( ! is_int($year_val)){
             return $year;   
         }
-        if ( strlen($year) == 4){
+        $year_len = strlen($year);
+        if ( $year_len == 4){
             return $year;
         }
-        else if (strlen($year) == 2){
+        else if ($year_len <= 2){
+            if ($year_len == 1)
+                $year = "0" . $year;
             if ( $year_val < $year_cuttoff)
                 return '20' . $year;
             else
                 return '19' . $year;
         }
         else{// not a 2 digit or four digit year
-            return $year;
+            throw new Exception(self::ERROR_MESSAGE);
         }
     }
 
     function get_month($month_name){
-        // extra cases are for portuguese month names used in some datasets
         switch(strtolower($month_name)){
             case 'jan':         return 1;
             case 'feb':         return 2;

@@ -23,8 +23,9 @@ class Sheet_Processor {
     private $current_time;
     private $db;
     private $resubmit_dup_count_threshold;
+    private $use_upload_history;
 
-    function __construct($db, $record_processor, $external_vals_processor) {
+    function __construct($db, $record_processor, $external_vals_processor, $use_upload_history = TRUE) {
         $this->record_processor = $record_processor;
         $this->external_vals_processor = $external_vals_processor;
         $this->db = $db;
@@ -36,6 +37,7 @@ class Sheet_Processor {
         $this->record_table = 'records';
         $this->upload_attempt_table = 'upload_attempts';
         $this->resubmit_dup_count_threshold = 0.5;
+        $this->use_upload_history = $use_upload_history;
     }
 
     function check_for_full_sheet_resubmission($data, $external_columns) {
@@ -88,9 +90,11 @@ class Sheet_Processor {
         // TODO - validate and generate sheet external data insert statement fragments
         // external columns are assumed to be in an associative array, as they are not part of a sheet
         // we will not want them to have to come in a specific order
-        $this->external_vals_processor->process_row_assoc($external_columns);
-        $this->record_processor->set_sheet_external_fields_and_data(
-            $this->external_vals_processor->generate_columns_and_data_lists());
+        if ( ! is_null($this->external_vals_processor) ) {
+            $this->external_vals_processor->process_row_assoc($external_columns);
+            $this->record_processor->set_sheet_external_fields_and_data(
+                $this->external_vals_processor->generate_columns_and_data_lists());
+        }
         // upload history also uses external columns, but does not need the upload_date in the array
         unset($external_columns['upload_date']);
         $lines = explode( $this->row_separator, $data);
@@ -157,7 +161,7 @@ class Sheet_Processor {
                     }
                 }
             }
-            if ( (float) $dup_count / ($line_count - $error_count) > $resubmit_dup_count_threshold ) {
+            if ( (float) $dup_count / ($line_count - $error_count) > $this->resubmit_dup_count_threshold ) {
                 throw new Exception("High percentage of duplicates found, assuming errant sheet re-upload."
                     . " Nothing new was added to the upload history or final dataset.");
             }
@@ -166,9 +170,9 @@ class Sheet_Processor {
         // this method is used to add columns that are needed to process the records if they are re-submitted,
         // but are not stored as part of the records themselves. Currenty this is just used to add the repetition
         // counts for repeated columns. This call is placed here so the sheet processors can use the 
-        // check_for_column_headers function to detect the sheet heades and adjust the column counts an necessary.
+        // check_for_column_headers function to detect the sheet headers and adjust the column counts an necessary.
         // TODO - figure out if the way this works could be cleaner
-        // To do this the information must be stored in the ubclass between the two method calls for now, this may
+        // TODO - this the information must be stored in the subclass between the two method calls for now, this may
         // change in the future
         $this->add_sheet_processing_metadata($external_columns);
         $line_count = count($lines);
@@ -191,7 +195,13 @@ class Sheet_Processor {
 
             try {
                 $this->record_processor->process_row($row);
+                //echo 'result of processing: ';
+                //print_r($this->record_processor->output_to_array());
+                //echo '<br>';
             } catch (Exception $ex) {
+                // TODO - figure out what to do with errors if no upload history being used
+                // TODO - delete me
+                echo $ex->getMessage();
                 $to_save = $this->record_processor->get_last_input_row();
                 // add back the record id
                 array_unshift($to_save, $record_id);
@@ -209,15 +219,17 @@ class Sheet_Processor {
                         array_unshift($to_save, $record_id);
                         $this->save_upload_attempt_in_history($to_save, 'duplicate', '1', $record_id, $external_columns);
                         continue;
-                    }     
+                    }
                 }
             }
             $this->record_processor->process_row($row);
             $new_observation_id = $this->record_processor->insert();
-            $result = $this->db->query("update scan_observations set record_id = '" . $record_id . "' where observation_id = '" . $new_observation_id . "'");	
-            if ( $result ){ } // success
-            else{
-                echo "Error linking uploaded record to upload history: " .  $this->db->error . "<br>";
+            if ($this->use_upload_history) {
+                $result = $this->db->query("update scan_observations set record_id = '" . $record_id . "' where observation_id = '" . $new_observation_id . "'");	
+                if ( $result ){ } // success
+                else{
+                    echo "Error linking uploaded record to upload history: " .  $this->db->error . "<br>";
+                }
             }
             // need to allow changes in some of the columns to impact the actual row data that will be saved
             // after processing, such as with columns that are supposed to fill down the sheet, but we will not
@@ -233,6 +245,9 @@ class Sheet_Processor {
     // TODO - deal with invalid record numbers passed in
     // TODO - refactor sql query generation to use library functions defined elsewhere
     function save_upload_attempt_in_history($input, $status, $is_webapp_output, $record_id, $record_fields){
+        if ( ! $this->use_upload_history) {
+            return true;
+        }
         $uploader_id = $record_fields['uploader_id'];
         if (is_null($record_id) || ! ctype_digit(trim($record_id))){
             unset($record_fields['uploader_id']);
@@ -251,7 +266,8 @@ class Sheet_Processor {
             ;// successful add of record, or recall of correct previous id
         }
         else{
-            $dev_err .= "Could not find record with the given ID:" . $this->db->error . "<br>\n";
+            // TODO - figure out how to report these to the users
+            //$dev_err .= "Could not find record with the given ID:" . $this->db->error . "<br>\n";
             // TODO - make this a class level variable?
             //$invalid_record_numbers .= $record_id . ", ";
             return false; // do not do the next query, it will fail due to a bad foreign key

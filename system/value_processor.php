@@ -1,7 +1,7 @@
 <?php
 
-include_once("value_validators.php");
-include_once("value_modifiers.php");
+include_once($_SERVER['DOCUMENT_ROOT'] . "/easy_db/system/value_validators.php");
+include_once($_SERVER['DOCUMENT_ROOT'] . "/easy_db/system/value_modifiers.php");
 
 /*
  * Value processors validate and modify a series of values from a single column (or group of columns with the
@@ -83,8 +83,10 @@ class Value_Processor {
             case Strip_Whitespace::NONE: break; 
             default: throw new Exception("Invalid whitespace handling provided.");
         }
-        // add a utf8 decoder to all columns
-        $this->modifiers[] = new UTF8_Decoder();
+        // TODO - default is to include this, may want to flip this
+        if ( ! isset($parameters['exclude_UTF8_decoder'] ) || $parameters['exclude_UTF8_decoder'] == FALSE) {
+            $this->modifiers[] = new UTF8_Decoder();
+        }
        
         // for now value processors will default to having a value modifier of * used, unless
         if ( ! isset($parameters['error_char'])){
@@ -128,8 +130,18 @@ class Value_Processor {
     function process_value($value){
         $new_value = $value;
         // TODO - add loops for validators, currently unused
+        /*
         foreach ($this->modifiers as $modifier) {
+            echo get_class($modifier) . ',';
+        }
+        echo '<br>';
+         */
+        //echo 'process_value: ' . $value . '<br>';
+        foreach ($this->modifiers as $modifier) {
+            //echo 'new val in val processor: ' . $new_value . '<br>';
             $new_value = $modifier->modify_value($new_value);
+            //echo get_class($modifier) . ',';
+            //echo "after modifier: stop? = " . $modifier->stop_subsequent_valdiators() . '<br>';
             if ($modifier->stop_subsequent_valdiators()) {
                 break;
             }

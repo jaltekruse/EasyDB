@@ -189,6 +189,8 @@ class Repeated_Column_Output extends Data_Output {
     // so we know where to stop generating child records rather than trying to insert nulls
     private $blank_at_pos;
 
+    private $columns_that_cannot_be_null;
+
     /*
      * takes a list of data outputs to be used repeatedly.
      *
@@ -198,7 +200,7 @@ class Repeated_Column_Output extends Data_Output {
      * TODO - implement columns_that_cannot_be_null
      */
     function __construct($data_outputs, $repetition_count, $relation_column,
-                         $output_table, $ignore_in_duplicate_check, $columns_that_cannot_be_null){
+                         $output_table, $ignore_in_duplicate_check, $columns_that_cannot_be_null = NULL){
         parent::__construct($ignore_in_duplicate_check);
         $this->data_outputs = $data_outputs;
         $this->data_output_count = count($this->data_outputs);
@@ -206,6 +208,7 @@ class Repeated_Column_Output extends Data_Output {
         $this->relation_column = $relation_column;
         $this->output_table = $output_table;
         $this->last_vals = array();
+        $this->columns_that_cannot_be_null = $columns_that_cannot_be_null;
         for ($i = 0; $i < $this->repetition_count; $i++){
             $this->last_vals[$i] = array();     
         }
@@ -248,6 +251,7 @@ class Repeated_Column_Output extends Data_Output {
             if ( ! $this->data_outputs[$this->current_data_output_index]->can_take_more_input()) {
                 // TODO - allow users to specify which columns can be null, right now no nulls are allowed in
                 // repetitions
+                //print_r($this->last_vals[$this->current_repetition_count]);
                 if (in_array(NULL, $this->last_vals[$this->current_repetition_count], true)) {
                     if ($this->blank_at_pos == -1){
                         $this->blank_at_pos = $this->current_repetition_count;
@@ -255,12 +259,25 @@ class Repeated_Column_Output extends Data_Output {
                 }
                 $this->data_outputs[$this->current_data_output_index]->
                     add_values_to_assoc_array($this->last_vals[$this->current_repetition_count]);
-                $this->current_repetition_count++;
+                //echo 'in repeated output, curr_output index(1):' . $this->current_data_output_index . ' rep count ' . $this->repetition_count . '<br>';
+                $this->current_data_output_index++;
+                if ($this->current_data_output_index == $this->data_output_count) {
+                    $this->current_data_output_index = 0;
+                    $this->current_repetition_count++;
+                }
                 if ($this->current_repetition_count > $this->repetition_count) {
                     return; 
                 }
+
+                /*
+                foreach ($this->data_outputs as $output) {
+                    echo get_class($output) . ',';
+                }
+                 */
+                //echo "index in output list: " . $this->current_data_output_index . '<br>';
                 // not actually moving to new row yet, just re-using this functionality from the non-repeated case
                 $this->data_outputs[$this->current_data_output_index]->reset_for_new_row();
+                //echo 'in repeated output, curr_output index:' . $this->current_data_output_index . '<br>';
                 if ( $this->current_data_output_index >= $this->data_output_count) { 
                     $this->current_data_output_index = 0;
                 }
@@ -301,14 +318,23 @@ class Repeated_Column_Output extends Data_Output {
         return $sql;
     }
 
-    function generate_insert_sql($last_insert_id) {
+    function generate_insert_sql($extra_fields_and_data = NULL) {
+        //echo "gen sql statements in repeated data output, blank at:" . $this->blank_at_pos;
         $sql_statements = array();
         $last_vals;
-        for ($i = 0; $i < $this->current_repetition_count && $i < $this->blank_at_pos; $i++) { 
+        for ($i = 0; 
+                $i < $this->current_repetition_count && 
+                ($i < $this->blank_at_pos || $this->columns_that_cannot_be_null); 
+                $i++) { 
             $last_vals = $this->last_vals[$i];
-            $last_vals[$this->main_table_primary_key_column] = $last_insert_id;
-            $sql_statements[] = Record_Processor::insert_sql_based_on_assoc_array(
-                $last_vals, $this->output_table);
+            foreach ($last_vals as $key => $value) {
+                if ( is_null($value) && array_search($key, $this->columns_that_cannot_be_null) !== FALSE){
+                    continue 2;
+                }
+            }
+            // going to handle this at a level up as it can be added to the new more general extra fields and data parameter
+            $sql_statements[] = MySQL_Utilities::insert_sql_based_on_assoc_array(
+                $last_vals, $this->output_table, $extra_fields_and_data);
         }
         return $sql_statements;
     }

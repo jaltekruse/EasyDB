@@ -30,4 +30,22 @@ class MySQL_Utilities {
         else
             return " = '" . MySQL_Utilities::$db->real_escape_string($val) . "'";
     }
+
+    public static function insert_sql_based_on_assoc_array($values, $table, $external_fields_and_data = NULL) {
+        $quoted_vals = array();
+        $external_fields = "";
+        $external_data = "";
+        if ($external_fields_and_data != NULL) {
+            $external_fields = ", " . $external_fields_and_data['fields'];
+            $external_data = ", " . $external_fields_and_data['data'];
+        }
+        foreach ($values as $key=>$val) {
+            $quoted_vals[$key] = MySQL_Utilities::quoted_val_or_null($val);
+        }
+        $sql = "insert into " . $table . " (`" . 
+            implode("`,`", array_keys($values)) . "`" . $external_fields . ") VALUES ";
+        $sql .= "(" . implode(",", $quoted_vals) . $external_data . ")";
+        return $sql;
+    }
+
 }

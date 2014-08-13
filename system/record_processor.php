@@ -55,6 +55,40 @@ class Record_Processor {
 
     // the character to add to the end of a column if it is the one in error, defaults to '*'
     private $error_char;
+
+    // a record processor in typical execution assumes the creation of a primary record and possibly a set of child
+    // records that link to it with a foreign key relationship. This allows disabling the primary record insertion,
+    // to enable a single record to be processed into a series of child rows.
+    // This can be accomplished by simply re-formatting the data for each 
+    private $no_primary_record_insertion;
+
+    // A list of columns that should be added to each child record from the primary columns. These are specified to
+    // allow for some data to be redundantly stored in the parents and children (not reccomended) or to allow processing
+    // of a single 'record' that describes a series of entries in a many to many table.
+    //
+    // Example:
+    // --------
+    // Employees Table:         employee_id, name, gender, department
+    // Tasks Table:             task_id, task_name, start_date, description
+    // Task Assignments Table:  employee_id, task_id
+    //
+    // This allows for muliple emplyees to be assigned to one task, if a single task were related to a single employee,
+    // the employee_id could simply be added as an attribute of each task.
+    //
+    // This field allows for the following format to be processed into the task assigments table, this assumes tasks and
+    // employees have already been created
+    //
+    // employee_id_1, task_id_1, task_id_2, task_id_3, task_id_4, ...
+    // employee_id_2, task_id_3, task_id_2, task_id_7, task_id_8, ...
+    //
+    // In this case the employee_id needs to be added to each child record, but does not appear next to each of the child
+    // task_id values. This breaks the model for a Repeated_Column_Output, necessitating an extension of record assembly
+    // here.
+    //
+    // Format : associative array relating the Repeated_Column_Output names to a list of columns to push into the repective child table for
+    // that repeater
+    // { employee_tasks : [ 'employee_id' ] }
+    private $primary_columns_to_push_into_children;
     
     public function get_outputs() {
         return $this->data_outputs;
@@ -94,21 +128,44 @@ class Record_Processor {
         $this->data_outputs = $parameters['data_outputs'];
         if (isset($parameters['data_output_names']))
             $this->data_output_names = $parameters['data_output_names'];
+        if (isset($parameters['no_primary_record_insertion']))
+            $this->no_primary_record_insertion = $parameters['no_primary_record_insertion']; 
+        if (isset($parameters['primary_columns_to_push_into_children']))
+            $this->primary_columns_to_push_into_children = $parameters['primary_columns_to_push_into_children']; 
         $this->data_outputs_count = count($this->data_outputs);
         $this->primary_key_column = $parameters['primary_key_column']; 
         $this->repeated_outputs = array();
         $this->non_repeated_outputs = array();
         $this->insert_db = $this->user_config->get_database_connection('read_write');
         MySQL_Utilities::set_db($this->insert_db);
-        foreach ($this->data_outputs as $data_output) {
+
+        // TODO - absolutely ugly hack, need to figure out a better way to organize this
+        // solution is to map the columns at the top of the sheet to data outputs, this will be a
+        // little interesting for repeated columns, but for a basic implementation that says column label X
+        // indicates the start of this repeated column should be alright
+        $reversed_data_output_name_map = array();
+        if ( ! is_null($this->data_output_names)) {
+            foreach ($this->data_output_names as $name => $index) {
+                $reversed_data_output_name_map[$index] = $name;
+            }
+        }
+        //print_r($reversed_data_output_name_map);
+        foreach ($this->data_outputs as $index => $data_output) {
             $data_output->set_parent_record_reader($this);
             $data_output->set_main_output_table($this->output_table);
             $data_output->set_main_table_pk_column($this->primary_key_column);
             if ($data_output instanceof Repeated_Column_Output) {
-                $this->repeated_outputs[] = $data_output; 
+                if ($reversed_data_output_name_map) {
+                    $this->repeated_outputs[$reversed_data_output_name_map[$index]] = $data_output; 
+                }
+                else
+                    $this->repeated_outputs[] = $data_output; 
             }
             else {
-                $this->non_repeated_outputs[] = $data_output;
+                if ($reversed_data_output_name_map)
+                    $this->non_repeated_outputs[$reversed_data_output_name_map[$index]] = $data_output; 
+                else
+                    $this->non_repeated_outputs[] = $data_output;
             }
         }
         $this->index_in_input_row = NULL;
@@ -188,7 +245,7 @@ class Record_Processor {
         $row_len = count($row);
         for ($this->index_in_input_row = 0; $this->index_in_input_row < $row_len; $this->index_in_input_row++){
             $value = $row[$this->index_in_input_row];
-            //echo $value . '<br>';
+            //echo 'val in record processor:' . $value . '<br>';
             try {
                 if ( ! $this->data_outputs[$index]->can_take_more_input()) {
                     $index++;
@@ -239,10 +296,15 @@ class Record_Processor {
      *        methods that need to be public can be wrapped in public methods.
      */
     function generate_columns_and_data_lists() {
-        $output_array = $this->output_to_assoc_array();
+        return $this->generate_columns_and_data_lists_from_assoc($this->output_to_assoc_array());
+    }
+
+    function generate_columns_and_data_lists_from_assoc($output_array) {
         $lists = array();
         // I know array_keys and array_valus exist, but I could not find a definite answer if they are
         // both guarenteed to return values in the same order
+        //echo "asdferjjkdsfher231243===============<br>";
+        //print_r($output_array);
         foreach ( $output_array as $field => $value) {
             $lists['fields'][] = $field;
             $lists['data'][] = MySQL_Utilities::quoted_val_or_null($value);
@@ -276,18 +338,25 @@ class Record_Processor {
 
     function insert() {
         $db = $this->insert_db;
-        $insert_sql = $this->insert_main_record_sql();
-        $result = $db->query($insert_sql);
-        if (! $result) {
-            echo $insert_sql . '<br>';
-            echo "Error with main record insert:" . $db->error . "<br>\n";
+        $main_reocrd_id = -1;
+        if ( ! $this->no_primary_record_insertion ) {
+            $insert_sql = $this->insert_main_record_sql();
+            $result = $db->query($insert_sql);
+            $main_record_id = $db->insert_id;
+            if (! $result) {
+                // TODO - throw error
+                echo $insert_sql . '<br>';
+                echo "Error with main record insert:" . $db->error . "<br>\n";
+            }
         }
-        $main_record_id = $db->insert_id;
         $child_insert_sql = $this->insert_child_record_sql($main_record_id);
         foreach ($child_insert_sql as $sql){
             $result = $db->query($sql);
             if (! $result) {
-                print_r($this->last_input_row);
+                // TODO - throw error with the parent ID so we can repair or re-upload it
+                // TODO - allow parents and children to be inserted as part of a single transaction
+                // would elmintate the need to clean up parents incorrectly missing children
+                //print_r($this->last_input_row);
                 echo "error with child record insertion:" . $db->error . "<br>\n";
             }
         }
@@ -300,38 +369,42 @@ class Record_Processor {
         foreach ($this->non_repeated_outputs as $data_output) {
             $data_output->add_values_to_assoc_array($values);
         }
-        return Record_Processor::insert_sql_based_on_assoc_array($values, $this->output_table, 
+        return MySQL_Utilities::insert_sql_based_on_assoc_array($values, $this->output_table, 
             $this->sheet_external_fields_and_data);
     }
 
     /*
      * Get the SQL required to insert the current record. The return of the function is
-     * an array of statements to execute, one for the main record and another for each
-     * of the child rows to insert.
+     * an array of statements to execute, one for each of the child rows to insert.
      */
     function insert_child_record_sql($last_insert_id){
+        //echo "========= insert child in record processor";
         $sql_statements = array();
-        foreach ($this->repeated_outputs as $data_output) {
-            $sql_statements = array_merge($sql_statements, $data_output->generate_insert_sql($last_insert_id));
+        // TODO - this is redundant with part of the method above, may want to move it
+        $values = array();
+        foreach ($this->non_repeated_outputs as $data_output) {
+            $data_output->add_values_to_assoc_array($values);
         }
-        return $sql_statements;
-    }
+        //echo "!!!!!!!!!!!!";
+        //print_r($this->primary_columns_to_push_into_children);
+        foreach ($this->repeated_outputs as $key => $data_output) {
+            $push_down_cols = array();
+            // TODO change this next line to push down the primary key if needed
+            
+            if ( ! $this->no_primary_record_insertion ) {
+                $push_down_cols[$this->primary_key_column] = $last_insert_id;
+            }
+            if ( ! is_null($this->primary_columns_to_push_into_children)) {
+                foreach ($this->primary_columns_to_push_into_children[$key] as $column_to_push_down) {
+                    $push_down_cols[$column_to_push_down] = $values[$column_to_push_down];
+                }
+            }
 
-    public static function insert_sql_based_on_assoc_array($values, $table, $external_fields_and_data = NULL) {
-        $quoted_vals = array();
-        $external_fields = "";
-        $external_data = "";
-        if ($external_fields_and_data != NULL) {
-            $external_fields = ", " . $external_fields_and_data['fields'];
-            $external_data = ", " . $external_fields_and_data['data'];
+            $extra_fields = $this->generate_columns_and_data_lists_from_assoc($push_down_cols);
+            $sql_statements = array_merge($sql_statements, $data_output->generate_insert_sql($extra_fields));
         }
-        foreach ($values as $key=>$val) {
-            $quoted_vals[$key] = MySQL_Utilities::quoted_val_or_null($val);
-        }
-        $sql = "insert into " . $table . " (`" . 
-            implode("`,`", array_keys($values)) . "`" . $external_fields . ") VALUES ";
-        $sql .= "(" . implode(",", $quoted_vals) . $external_data . ")";
-        return $sql;
+        //echo "%%%%%%%%";
+        return $sql_statements;
     }
 
     function output_to_array() {
