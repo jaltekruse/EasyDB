@@ -1,5 +1,6 @@
 <?php
 include_once($_SERVER['DOCUMENT_ROOT'] . "/easy_db/system/data_output.php");
+include_once($_SERVER['DOCUMENT_ROOT'] . "/easy_db/system/cross_column_validators.php");
 
 class Record_Processor {
 
@@ -26,6 +27,9 @@ class Record_Processor {
     // this data only needs to be validated once, so here the columns and data to be added to the
     // insert statements are stored for concatination into the sql queries
     private $sheet_external_fields_and_data;
+    // Another representation of the data above in the from of a map between fields and data
+    // this is used for calidation instead of query generation
+    private $external_data_array;
     
     private $data_outputs_count;
     private $output_table;
@@ -55,6 +59,13 @@ class Record_Processor {
 
     // the character to add to the end of a column if it is the one in error, defaults to '*'
     private $error_char;
+
+    // These valdiators allow for validation rules that take several columns into account.
+    // An example would be a date range validator to ensure that one date column always is later than a date in another
+    // The format of this field is an array that contains a simple map for each of the validators.
+    //
+    // Stored as a simple list of validator objects
+    private $cross_column_validators;
 
     // a record processor in typical execution assumes the creation of a primary record and possibly a set of child
     // records that link to it with a foreign key relationship. This allows disabling the primary record insertion,
@@ -115,6 +126,7 @@ class Record_Processor {
       * extra_fields - to be appended after the columns provided in the main records
       *     This can be used to store information about the datasheet, uploader, observer, or anything that can
       *     be applied to the whole sheet to save the time of copying it into each row manually
+      * TODO - Fill in the rest of the documentation here
       */
     function __construct($parameters){
         assert( isset($parameters['data_outputs'])); // "Must supply data outputs for Record_Processor."
@@ -128,6 +140,8 @@ class Record_Processor {
         $this->data_outputs = $parameters['data_outputs'];
         if (isset($parameters['data_output_names']))
             $this->data_output_names = $parameters['data_output_names'];
+        if (isset($parameters['cross_column_validators']))
+            $this->cross_column_validators = $parameters['cross_column_validators'];
         if (isset($parameters['no_primary_record_insertion']))
             $this->no_primary_record_insertion = $parameters['no_primary_record_insertion']; 
         if (isset($parameters['primary_columns_to_push_into_children']))
@@ -171,8 +185,12 @@ class Record_Processor {
         $this->index_in_input_row = NULL;
     }
 
-    function set_sheet_external_fields_and_data($sheet_external_fields_and_data) {
+    // store data to be injected to each record in two formats. One is tuple containing two strings, one of field names 
+    // and one of the appropriately escaped and quoted values for direct insertion into a query. The other is a map
+    // from field names to data to be used in validation
+    function set_sheet_external_fields_and_data($sheet_external_fields_and_data, $external_data_array) {
         $this->sheet_external_fields_and_data = $sheet_external_fields_and_data;
+        $this->external_data_array = $external_data_array;
     }
 
     function set_repeated_data_output_repetition_count($output_name, $repetitions) {
@@ -198,15 +216,19 @@ class Record_Processor {
                 continue;
             }
             $curr_data_output = $this->data_outputs[$this->data_output_names[$field]];
+            // TODO - verify that this works
             $curr_data_output->reset_for_new_row();
             if ( ! is_array($value) ) {
                 // TODO - decide what to do here
                 // this check is here to handle cases where a user mistakenly passes data associated
                 // with a data output designed not to take anything, might want to just ignore it instead
                 // of throwing the error
-                if ($curr_data_output->can_take_more_input())
+                if ($curr_data_output->can_take_more_input()) {
+                    // TODO - catch an error here and place error character back into record data so it can be recorded in the 
+                    // upload history
                     $curr_data_output->convert_to_output_format($value);
-                else {
+                } else {
+                    // TODO - fix this to place the error character appropriately back into associative array
                     $last_input_row_errored = TRUE;
                     $this->place_error_char($i);
                     throw new Exception("Input not expected for '" . $field . "', but some was provided."); 
@@ -224,6 +246,7 @@ class Record_Processor {
                 }
             }
         }
+        $this->run_cross_column_validation();
     }
 
     /*
@@ -264,6 +287,8 @@ class Record_Processor {
                 throw $ex;
             }
         }
+        $this->run_cross_column_validation();
+
         // TODO - re-enable this when it can handle extra input that is just spaces without saying there is an error
         if ($too_much_input !== FALSE) {
             //$last_input_row_errored = TRUE;
@@ -281,10 +306,33 @@ class Record_Processor {
         $this->index_in_input_row = NULL;
     }
 
+    private function run_cross_column_validation() {
+        if (is_null($this->cross_column_validators))
+            return;
+        $output_assoc_array = $this->output_to_assoc_array();
+        if ( ! is_null($this->external_data_array)) {
+            $output_assoc_array = array_merge( $output_assoc_array, $this->external_data_array);
+        }
+        foreach ( $this->cross_column_validators as $validator ) {
+            try {
+                $validator->validate($output_assoc_array);
+            } catch ( Exception $ex ) {
+                $field_map = $validator->get_field_map();
+                foreach ($field_map as $validator_field => $data_output_field) {
+                    if ( isset($this->data_outputs[$this->data_output_names[$data_output_field]])) {
+                        $this->place_error_char($this->data_output_names[$data_output_field]);
+                    }
+                }
+                throw $ex;
+            }
+        }
+    }
+
     private function place_error_char($index) {
         $this->last_input_row[$index] = rtrim($this->last_input_row[$index]) . $this->error_char;
     }
 
+    // TODO - MAKE SURE THIS STILL WORKS NOW THAT THE METHOD HAS BEEN MOVED INTO MYSQL_UTIL
     /*
      * this is used by the instances of record processor that are handling sheet external data
      * they do not generate entire sql statements, but instead column and values lists as strings
@@ -296,22 +344,7 @@ class Record_Processor {
      *        methods that need to be public can be wrapped in public methods.
      */
     function generate_columns_and_data_lists() {
-        return $this->generate_columns_and_data_lists_from_assoc($this->output_to_assoc_array());
-    }
-
-    function generate_columns_and_data_lists_from_assoc($output_array) {
-        $lists = array();
-        // I know array_keys and array_valus exist, but I could not find a definite answer if they are
-        // both guarenteed to return values in the same order
-        //echo "asdferjjkdsfher231243===============<br>";
-        //print_r($output_array);
-        foreach ( $output_array as $field => $value) {
-            $lists['fields'][] = $field;
-            $lists['data'][] = MySQL_Utilities::quoted_val_or_null($value);
-        }
-        $lists['fields'] = "`" . implode('`, `', $lists['fields']) . "`";
-        $lists['data'] = implode(', ', $lists['data']);
-        return $lists;
+        return MySQL_Utilities::generate_columns_and_data_lists_from_assoc($this->output_to_assoc_array());
     }
 
     //=============================================
@@ -400,7 +433,7 @@ class Record_Processor {
                 }
             }
 
-            $extra_fields = $this->generate_columns_and_data_lists_from_assoc($push_down_cols);
+            $extra_fields = MySQL_Utilities::generate_columns_and_data_lists_from_assoc($push_down_cols);
             $sql_statements = array_merge($sql_statements, $data_output->generate_insert_sql($extra_fields));
         }
         //echo "%%%%%%%%";

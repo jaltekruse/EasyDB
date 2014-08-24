@@ -1,7 +1,5 @@
 <?php
 
-// TODO - create a modifier that will repeat values down the dataset during subsequent calls to it
-
 abstract class Value_Modifier {
 
     // this is set in the constructor of the parent
@@ -34,7 +32,7 @@ abstract class Value_Modifier {
     // TODO - figure out if we need a reset for this, right now it is assumed that this will
     // only be called after a call to modify_current_value, which should set the state inside
     // of the modifier correctly
-    public function stop_subsequent_valdiators() {
+    public function stop_subsequent_validiators() {
         return FALSE; 
     }
 
@@ -101,7 +99,7 @@ class Null_Validator extends Value_Modifier {
         }
     } 
 
-    public function stop_subsequent_valdiators() {
+    public function stop_subsequent_validiators() {
         return $this->last_val_null; 
     }
 
@@ -121,7 +119,7 @@ class Null_Word_Validator extends Value_Modifier {
         }
     } 
 
-    public function stop_subsequent_valdiators() {
+    public function stop_subsequent_validiators() {
         return $this->last_val_null; 
     }
 
@@ -234,13 +232,24 @@ class Code_Value_Validator extends Value_Modifier {
 
 class ID_Value_Enforcer extends Code_Value_Validator {
 
+    function __construct($table, $case_sensitive = FALSE, $where_clause = "") {
+        parent::__construct($table, $case_sensitive, $where_clause);
+    }
+
     function modify_value($value) {
-        if ( ! $this->case_sensitive ) $value = strtolower($value);
-        if ( isset($this->valid_id_values[$value]) ) {
+        if ( $this->check_id($value) ) {
             return $value;
         } else {
             throw new Exception("Code not found in the '" . $this->table . "' table."); 
         }
+    }
+
+    public function check_id($value) {
+        if ( ! $this->case_sensitive ) $value = strtolower($value);
+        if ( isset($this->valid_id_values[$value]) )
+            return true;
+        else
+            return false;
     }
 
 }

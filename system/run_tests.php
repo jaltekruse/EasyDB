@@ -235,7 +235,7 @@ class Unit_Tests {
         $output_fields_and_data = $external_fields_processor->generate_columns_and_data_lists();
         $this->assertEquals(array( 'fields' => '`time`, `time2`, `time3`, `date`',
             'data' => "'1:30', '14:00', '5:30', '2005-5-5'" ), $output_fields_and_data);
-        $record_processor->set_sheet_external_fields_and_data($output_fields_and_data);
+        $record_processor->set_sheet_external_fields_and_data($output_fields_and_data, $external_fields_processor->output_to_assoc_array());
         $this->assertEquals("insert into animals_easy_db_test_temp " . 
             "(`birthday`,`is_male`,`age_category_id`,`animal_code`, `time`, `time2`, `time3`, `date`) ". 
             "VALUES ('2005-5-5','0',NULL,'jane', '1:30', '14:00', '5:30', '2005-5-5')",
@@ -339,6 +339,44 @@ class Unit_Tests {
 		$outputs = $record_processor->get_outputs();
         $this->assertEquals("2012-3-22 2:30", $outputs[0]->get_last_val());
         $this->assertEquals(array("2012-3-22 2:30"), $record_processor->output_to_array());
+    }
+
+    function test_date_range_validator() {
+        $db = 1;
+        $processor_config = $this->default_processor_config;
+        $processor_config['modifiers'] = array();
+
+        $data_output = new Single_Column_Output(new Value_Processor($db, $this->user_config, 
+            array( 'column' => 'test', 'modifiers' => array(new Date_Validator_Formatter()))), 'first_date', FALSE);
+
+        $data_output2 = new Single_Column_Output(new Value_Processor($db, $this->user_config, 
+            array( 'column' => 'test', 'modifiers' => array(new Date_Validator_Formatter()))), 'second_date', FALSE);
+
+        $data_output_names = array(
+            'first_date' => 0,
+            'second_date' => 1,
+        );
+
+        $record_processor =  new Record_Processor(array('user_config' => $this->user_config,
+            'output_table' => 'unused',
+            'primary_key_column' => 'unused',
+            'data_output_names' => $data_output_names,
+            'data_outputs' => array($data_output, $data_output2),
+            'cross_column_validators' => array(new Date_Range_Validator(array('start_date' => 'first_date', 'end_date' => 'second_date')))
+            )
+        );
+
+        try {
+            $record_processor->process_row(array("22/3/2012", "22/3/2013"));
+        } catch (Exception $ex) {
+            throw new Exception("Failed cross column validator - " . $ex->getMessage());
+        }
+
+        try {
+            $record_processor->process_row(array("22/3/2014", "22/3/2013"));
+        } catch (Exception $ex) {
+            $this->assertEquals("End date does not occur after start date.", $ex->getMessage());
+        }
     }
 
     function time_time_time_date_processor() {

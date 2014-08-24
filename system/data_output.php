@@ -200,7 +200,7 @@ class Repeated_Column_Output extends Data_Output {
      * TODO - implement columns_that_cannot_be_null
      */
     function __construct($data_outputs, $repetition_count, $relation_column,
-                         $output_table, $ignore_in_duplicate_check, $columns_that_cannot_be_null = NULL){
+                         $output_table, $ignore_in_duplicate_check, $columns_that_cannot_be_null = array() ){
         parent::__construct($ignore_in_duplicate_check);
         $this->data_outputs = $data_outputs;
         $this->data_output_count = count($this->data_outputs);
@@ -291,7 +291,18 @@ class Repeated_Column_Output extends Data_Output {
     }
 
     function get_last_val(){
-        throw new Exception("Unsupported operation");
+        $last_vals = array();
+        for ($i = 0; $i < $this->current_repetition_count && 
+                    ($i < $this->blank_at_pos || $this->columns_that_cannot_be_null);  $i++) { 
+            $last_val = $this->last_vals[$i];
+            foreach ($last_val as $key => $value) {
+                if ( is_null($value) && array_search($key, $this->columns_that_cannot_be_null) !== FALSE){
+                    continue 2;
+                }
+            }
+            $last_vals[] = $this->last_vals[$i];
+        }
+        return $last_vals;
     }
 
     // TODO !! - these do not appear to be handling NULL appropriately!
@@ -324,8 +335,7 @@ class Repeated_Column_Output extends Data_Output {
         $last_vals;
         for ($i = 0; 
                 $i < $this->current_repetition_count && 
-                ($i < $this->blank_at_pos || $this->columns_that_cannot_be_null); 
-                $i++) { 
+                ($i < $this->blank_at_pos || $this->columns_that_cannot_be_null); $i++) { 
             $last_vals = $this->last_vals[$i];
             foreach ($last_vals as $key => $value) {
                 if ( is_null($value) && array_search($key, $this->columns_that_cannot_be_null) !== FALSE){
@@ -357,7 +367,7 @@ class Repeated_Column_Output extends Data_Output {
 
     function add_values_to_assoc_array(&$val_list) {
         if ( $this->disabled ) return;
-        $val_list[$this->get_output_col_name()] = $this->get_last_val();
+        $val_list[$this->output_table] = $this->get_last_val();
     }
 
     // this is going to mostly function the same as the can_take_more_input method

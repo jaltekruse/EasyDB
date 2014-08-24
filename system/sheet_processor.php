@@ -22,7 +22,11 @@ class Sheet_Processor {
     private $upload_attempt_table;
     private $current_time;
     private $db;
+    // These values are used to set a maximum percentage or records allowed to be duplicate or errors
+    // and still allow them to be added to the upload history. Sheets that exceed these thresholds will
+    // have to be reviewed and modified by uploaders before they re-uploaded
     private $resubmit_dup_count_threshold;
+    private $max_error_threshold;
     private $use_upload_history;
 
     function __construct($db, $record_processor, $external_vals_processor, $use_upload_history = TRUE) {
@@ -37,6 +41,7 @@ class Sheet_Processor {
         $this->record_table = 'records';
         $this->upload_attempt_table = 'upload_attempts';
         $this->resubmit_dup_count_threshold = 0.5;
+        $this->max_error_threshold = 0.5;
         $this->use_upload_history = $use_upload_history;
     }
 
@@ -93,7 +98,7 @@ class Sheet_Processor {
         if ( ! is_null($this->external_vals_processor) ) {
             $this->external_vals_processor->process_row_assoc($external_columns);
             $this->record_processor->set_sheet_external_fields_and_data(
-                $this->external_vals_processor->generate_columns_and_data_lists());
+                $this->external_vals_processor->generate_columns_and_data_lists(), $this->external_vals_processor->output_to_assoc_array());
         }
         // upload history also uses external columns, but does not need the upload_date in the array
         unset($external_columns['upload_date']);
@@ -165,6 +170,10 @@ class Sheet_Processor {
                 throw new Exception("High percentage of duplicates found, assuming errant sheet re-upload."
                     . " Nothing new was added to the upload history or final dataset.");
             }
+            if ( (float) $error_count / ($line_count ) > $this->max_error_threshold ) {
+                throw new Exception("High percentage of errors found, check the datasheet and any additional data submitted while uploading. "
+                    . " Nothing new was added to the upload history or final dataset.");
+            }
         }
 
         // this method is used to add columns that are needed to process the records if they are re-submitted,
@@ -188,7 +197,7 @@ class Sheet_Processor {
             }
 
 			// save this line in the history of uploads, all uploaded raw data is saved as well as application output
-			$record_id = $this->save_upload_attempt_in_history($row, '', '0', $record_id, $external_columns);	
+			$record_id = $this->save_upload_attempt_in_history($row, '', '', '0', $record_id, $external_columns);	
 			if ($record_id == false){
 				continue; // there was an issue with the record_id
             }
@@ -201,11 +210,10 @@ class Sheet_Processor {
             } catch (Exception $ex) {
                 // TODO - figure out what to do with errors if no upload history being used
                 // TODO - delete me
-                echo $ex->getMessage();
                 $to_save = $this->record_processor->get_last_input_row();
                 // add back the record id
                 array_unshift($to_save, $record_id);
-	            $this->save_upload_attempt_in_history($to_save, 'error', '1', $record_id, $external_columns);
+	            $this->save_upload_attempt_in_history($to_save, 'error', $ex->getMessage(), '1', $record_id, $external_columns);
                 continue;
             }
             if ( ! $this->disable_duplicate_check ) {
@@ -217,7 +225,7 @@ class Sheet_Processor {
                         $to_save = $this->record_processor->get_last_input_row();
                         // add back the record_id
                         array_unshift($to_save, $record_id);
-                        $this->save_upload_attempt_in_history($to_save, 'duplicate', '1', $record_id, $external_columns);
+                        $this->save_upload_attempt_in_history($to_save, 'duplicate', '', '1', $record_id, $external_columns);
                         continue;
                     }
                 }
@@ -235,7 +243,7 @@ class Sheet_Processor {
             // after processing, such as with columns that are supposed to fill down the sheet, but we will not
             // necessarily be processing the record above it the provided the values when we are going to correct
             // a record in error at a later time (as the preivous records may have been without errors)
-            $this->save_upload_attempt_in_history($this->record_processor->get_last_input_row(), 'successful add', '1', $record_id, $external_columns);
+            $this->save_upload_attempt_in_history($this->record_processor->get_last_input_row(), 'successful add', '', '1', $record_id, $external_columns);
         } 
     }
 
@@ -244,14 +252,14 @@ class Sheet_Processor {
 
     // TODO - deal with invalid record numbers passed in
     // TODO - refactor sql query generation to use library functions defined elsewhere
-    function save_upload_attempt_in_history($input, $status, $is_webapp_output, $record_id, $record_fields){
+    function save_upload_attempt_in_history($input, $status, $notes, $is_webapp_output, $record_id, $record_fields){
         if ( ! $this->use_upload_history) {
             return true;
         }
         $uploader_id = $record_fields['uploader_id'];
         if (is_null($record_id) || ! ctype_digit(trim($record_id))){
             unset($record_fields['uploader_id']);
-            $record_insert_query = Record_Processor::insert_sql_based_on_assoc_array($record_fields, 'records');
+            $record_insert_query = MySQL_Utilities::insert_sql_based_on_assoc_array($record_fields, 'records');
             $result = $this->db->query($record_insert_query);	
             if ($result){
                 $record_id = $this->db->insert_id;
@@ -272,17 +280,13 @@ class Sheet_Processor {
             //$invalid_record_numbers .= $record_id . ", ";
             return false; // do not do the next query, it will fail due to a bad foreign key
         }
-        $sql = "INSERT INTO upload_attempts (upload_date, uploader_id, record_id, is_webapp_output, status, ";
+        $fields_and_data = array('upload_date' => $this->current_time , 'uploader_id' => $uploader_id , 
+            'record_id' => $record_id, 'is_webapp_output' => $is_webapp_output, 'status' => $status, 'upload_notes' => $notes );
         for($i = 1; $i <= count($input); $i++){
-            $sql .= "col_" . $i;
-            if ( $i != count($input))
-                $sql .= ",";
+            $fields_and_data[ "col_" . $i ] = $input[$i - 1];
         }
-        $sql .= ") values (";
-        $sql .= "'" . $this->current_time . "', '" . $uploader_id . "', '". $record_id . "','" . 
-            $is_webapp_output . "','" . $status . "','";
-        $sql .= implode("','", $input) . "')"; 
-        //echo $sql . "<br>";
+        $prepared_fields_and_data = MySQL_Utilities::generate_columns_and_data_lists_from_assoc($fields_and_data);
+        $sql = 'INSERT INTO upload_attempts (' . $prepared_fields_and_data['fields'] . ') values (' . $prepared_fields_and_data['data'] . ')'; 
         $result = $this->db->query($sql);
         if (! $result){
             echo "Error adding upload attempt: " . $this->db->error . " - " . $sql;

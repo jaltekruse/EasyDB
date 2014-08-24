@@ -135,14 +135,14 @@ class Value_Processor {
             echo get_class($modifier) . ',';
         }
         echo '<br>';
-         */
+        */
         //echo 'process_value: ' . $value . '<br>';
         foreach ($this->modifiers as $modifier) {
-            //echo 'new val in val processor: ' . $new_value . '<br>';
             $new_value = $modifier->modify_value($new_value);
+            //echo 'new val in val processor: ' . $new_value . '<br>';
             //echo get_class($modifier) . ',';
-            //echo "after modifier: stop? = " . $modifier->stop_subsequent_valdiators() . '<br>';
-            if ($modifier->stop_subsequent_valdiators()) {
+            //echo "after modifier: stop? = " . $modifier->stop_subsequent_validiators() . '<br>';
+            if ($modifier->stop_subsequent_validiators()) {
                 break;
             }
         }

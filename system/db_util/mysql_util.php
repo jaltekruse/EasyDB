@@ -21,6 +21,22 @@ class MySQL_Utilities {
             return "'" . MySQL_Utilities::$db->real_escape_string($val) . "'";
     }
 
+    public static function generate_columns_and_data_lists_from_assoc($output_array) {
+        $lists = array();
+        // I know array_keys and array_valus exist, but I could not find a definite answer if they are
+        // both guarenteed to return values in the same order
+        //echo "asdferjjkdsfher231243===============<br>";
+        //print_r($output_array);
+        foreach ( $output_array as $field => $value) {
+            $lists['fields'][] = $field;
+            $lists['data'][] = MySQL_Utilities::quoted_val_or_null($value);
+        }
+        $lists['fields'] = "`" . implode('`, `', $lists['fields']) . "`";
+        $lists['data'] = implode(', ', $lists['data']);
+        return $lists;
+    }
+
+
     // this variation of the above method is needed because checking for = NULL
     // is not supported by default in MySQL, for more info refer here
     // http://stackoverflow.com/questions/9608639/mysql-comparison-with-null-value
@@ -29,6 +45,17 @@ class MySQL_Utilities {
             return " IS NULL";
         else
             return " = '" . MySQL_Utilities::$db->real_escape_string($val) . "'";
+    }
+
+    // Associative array of fields to data turned into a where clause for matching on the values.
+    // Values passed as null are turned into IS NULL statements.
+    public static function match($fields_and_data) {
+        $ret = " ";
+        $clauses = array();
+        foreach ( $fields_and_data as $key => $val) {
+            $clauses[] = "`" . $key . "`" . self::quoted_val_or_null_with_comparison_op($val);
+        }
+        return implode(' AND ', $clauses);
     }
 
     public static function insert_sql_based_on_assoc_array($values, $table, $external_fields_and_data = NULL) {
