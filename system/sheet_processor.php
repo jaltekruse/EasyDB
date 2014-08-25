@@ -2,6 +2,7 @@
 include_once($_SERVER['DOCUMENT_ROOT'] . "/easy_db/system/record_processor.php");
 include_once($_SERVER['DOCUMENT_ROOT'] . "/easy_db/system/db_util/mysql_util.php");
 
+// TODO - remove all references to MBED specific tables and features
 class Sheet_Processor { 
 
     protected $record_processor;
@@ -171,7 +172,7 @@ class Sheet_Processor {
                     . " Nothing new was added to the upload history or final dataset.");
             }
             if ( (float) $error_count / ($line_count ) > $this->max_error_threshold ) {
-                throw new Exception("High percentage of errors found, check the datasheet and any additional data submitted while uploading. "
+                throw new Exception("High percentage of errors found, check the datasheet and any additional information submitted while uploading for accuracy. "
                     . " Nothing new was added to the upload history or final dataset.");
             }
         }
@@ -231,6 +232,27 @@ class Sheet_Processor {
                 }
             }
             $this->record_processor->process_row($row);
+            // TODO - check if this record ID is already in the dataset, if it is delete the child records, issue an update
+            // statement instead of an insert and re-add the children
+            $check_previous_sucessful_upload_query = "select observation_id from scan_observations where record_id = " . MySQL_Utilities::quoted_val_or_null($record_id);
+            $result = $this->db->query($check_previous_sucessful_upload_query);
+            if ( ! $result) {
+                // TODO - handle this
+                // error connecting to the database;
+            } else {
+                if ( $result->num_rows > 0) {
+                    $row = $result->fetch_assoc();
+                    $observation_id = $row['observation_id'];
+                    $delete_query = 'delete from neighbors where observation_id = ' . MySQL_Utilities::quoted_val_or_null($observation_id);
+                    $result = $this->db->query($delete_query);
+                    if ( ! $result )
+                        echo 'Failed to delete neighbors for old record. ' . $this->db->error;
+                    $delete_query = 'delete from scan_observations where observation_id = ' . MySQL_Utilities::quoted_val_or_null($observation_id);
+                    $result = $this->db->query($delete_query);
+                    if ( ! $result )
+                        echo 'Failed to delete previous version of record. ' . $this->db->error;
+                } 
+            }
             $new_observation_id = $this->record_processor->insert();
             if ($this->use_upload_history) {
                 $result = $this->db->query("update scan_observations set record_id = '" . $record_id . "' where observation_id = '" . $new_observation_id . "'");	
