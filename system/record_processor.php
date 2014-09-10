@@ -144,6 +144,8 @@ class Record_Processor {
             $this->cross_column_validators = $parameters['cross_column_validators'];
         if (isset($parameters['no_primary_record_insertion']))
             $this->no_primary_record_insertion = $parameters['no_primary_record_insertion']; 
+        else
+            $this->no_primary_record_insertion = FALSE;
         if (isset($parameters['primary_columns_to_push_into_children']))
             $this->primary_columns_to_push_into_children = $parameters['primary_columns_to_push_into_children']; 
         $this->data_outputs_count = count($this->data_outputs);

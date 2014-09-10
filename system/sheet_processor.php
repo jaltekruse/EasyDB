@@ -223,11 +223,22 @@ class Sheet_Processor {
                 if ( ! $result ) $dev_err .=  "ERROR WITH DUP CHECK!! : " . $this->db->error;
                 else {
                     if ($result->num_rows > 0) {
-                        $to_save = $this->record_processor->get_last_input_row();
-                        // add back the record_id
-                        array_unshift($to_save, $record_id);
-                        $this->save_upload_attempt_in_history($to_save, 'duplicate', '', '1', $record_id, $external_columns);
-                        continue;
+                        // TODO - check if the record that matched has the same record id as what is being added, allow it through
+                        $record = $result->fetch_assoc();
+                        if ( $record['record_id'] == $record_id) {
+                            // TODO - fix the duplicate check to properly handle child record with duplicate keys
+                            // the current behavior will cause this to incorrectly ignore some updates
+                            // TODO- another possible solution is to allow this case through to the upload stage, but then the reocrd should
+                            // be deleted first, this would be a good place for a transaction, as we don't want to leave the final database inconsistent
+                            // with the upload history
+                            continue; 
+                        } else  {
+                            $to_save = $this->record_processor->get_last_input_row();
+                            // add back the record_id
+                            array_unshift($to_save, $record_id);
+                            $this->save_upload_attempt_in_history($to_save, 'duplicate', '', '1', $record_id, $external_columns);
+                            continue;
+                        }
                     }
                 }
             }

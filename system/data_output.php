@@ -242,7 +242,7 @@ class Repeated_Column_Output extends Data_Output {
     
     function convert_to_output_format($value) {
         // TODO allow blanks in reptitions
-        if ($this->blank_at_pos == -1 && $value == ""){
+        if ($this->blank_at_pos == -1 && ($value == "" || is_null($value))){
             $this->blank_at_pos = $this->current_repetition_count;
         }
         try {
@@ -302,6 +302,7 @@ class Repeated_Column_Output extends Data_Output {
             }
             $last_vals[] = $this->last_vals[$i];
         }
+        //print_r($last_vals); 
         return $last_vals;
     }
 
@@ -333,13 +334,20 @@ class Repeated_Column_Output extends Data_Output {
         //echo "gen sql statements in repeated data output, blank at:" . $this->blank_at_pos;
         $sql_statements = array();
         $last_vals;
-        for ($i = 0; 
-                $i < $this->current_repetition_count && 
-                ($i < $this->blank_at_pos || $this->columns_that_cannot_be_null); $i++) { 
+        for ($i = 0; $i < $this->current_repetition_count; $i++) { 
+            if ( $this->blank_at_pos != -1 && $i > $this->blank_at_pos) {
+                break;
+            }
+            //print_r($this->last_vals);
+
             $last_vals = $this->last_vals[$i];
-            foreach ($last_vals as $key => $value) {
-                if ( is_null($value) && array_search($key, $this->columns_that_cannot_be_null) !== FALSE){
-                    continue 2;
+
+            if ($this->columns_that_cannot_be_null) {
+                foreach ($last_vals as $key => $value) {
+                    if ( is_null($value) && array_search($key, $this->columns_that_cannot_be_null) !== FALSE){
+                        // TODO - should an exception be thrown here?
+                        continue 2;
+                    }
                 }
             }
             // going to handle this at a level up as it can be added to the new more general extra fields and data parameter
