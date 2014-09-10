@@ -211,6 +211,14 @@ class Sheet_Processor {
             } catch (Exception $ex) {
                 // TODO - figure out what to do with errors if no upload history being used
                 // TODO - delete me
+                // if there is currently a record currently in the dataset with this record ID, delete it
+                // TODO - excape input
+                $sql = "delete from scan_observations where record_id = '" . $record_id . "'";
+                $result = $this->db->query($sql);
+                if ( ! $result) {
+                    // TODO - error handling
+                    echo $db->error;
+                }
                 $to_save = $this->record_processor->get_last_input_row();
                 // add back the record id
                 array_unshift($to_save, $record_id);
