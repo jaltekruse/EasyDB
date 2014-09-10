@@ -231,7 +231,7 @@ class Sheet_Processor {
                             // TODO- another possible solution is to allow this case through to the upload stage, but then the reocrd should
                             // be deleted first, this would be a good place for a transaction, as we don't want to leave the final database inconsistent
                             // with the upload history
-                            continue; 
+                            //continue; 
                         } else  {
                             $to_save = $this->record_processor->get_last_input_row();
                             // add back the record_id
