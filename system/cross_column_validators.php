@@ -47,6 +47,9 @@ class Date_Range_Validator extends Cross_Column_Validator {
         $this->check_field_set('end_date');
         $start = new DateTime($this->get('start_date'));
         $end = new DateTime($this->get('end_date'));
+        // This looks like the wrong thing to do here, but the invert method
+        // actaully returns 1 only if the interval is negative and 0 otherwise
+        // http://php.net/manual/en/class.dateinterval.php#dateinterval.props.invert
         if ($start->diff($end)->invert == 0) {
             return;
         }
