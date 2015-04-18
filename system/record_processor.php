@@ -165,7 +165,6 @@ class Record_Processor {
                 $reversed_data_output_name_map[$index] = $name;
             }
         }
-        //print_r($reversed_data_output_name_map);
         foreach ($this->data_outputs as $index => $data_output) {
             $data_output->set_parent_record_reader($this);
             $data_output->set_main_output_table($this->output_table);
@@ -270,7 +269,6 @@ class Record_Processor {
         $row_len = count($row);
         for ($this->index_in_input_row = 0; $this->index_in_input_row < $row_len; $this->index_in_input_row++){
             $value = $row[$this->index_in_input_row];
-            //echo 'val in record processor:' . $value . '<br>';
             try {
                 if ( ! $this->data_outputs[$index]->can_take_more_input()) {
                     $index++;
@@ -279,7 +277,6 @@ class Record_Processor {
                     }
                     $this->data_outputs[$index]->reset_for_new_row();
                 }
-
                 $this->data_outputs[$index]->convert_to_output_format($value);
     
             } catch (Exception $ex ) {
@@ -380,8 +377,7 @@ class Record_Processor {
             $main_record_id = $db->insert_id;
             if (! $result) {
                 // TODO - throw error
-                echo $insert_sql . '<br>';
-                echo "Error with main record insert:" . $db->error . "<br>\n";
+                throw new Exception("Error with main record insert:" . $db->error);
             }
         }
         $child_insert_sql = $this->insert_child_record_sql($main_record_id);
@@ -390,9 +386,8 @@ class Record_Processor {
             if (! $result) {
                 // TODO - throw error with the parent ID so we can repair or re-upload it
                 // TODO - allow parents and children to be inserted as part of a single transaction
-                // would elmintate the need to clean up parents incorrectly missing children
-                //print_r($this->last_input_row);
-                echo "error with child record insertion:" . $db->error . "<br>\n";
+                // would eliminate the need to clean up parents incorrectly missing children
+                throw new Exception("error with child record insertion:" . $db->error);
             }
         }
         return $main_record_id;
@@ -413,15 +408,12 @@ class Record_Processor {
      * an array of statements to execute, one for each of the child rows to insert.
      */
     function insert_child_record_sql($last_insert_id){
-        //echo "========= insert child in record processor";
         $sql_statements = array();
         // TODO - this is redundant with part of the method above, may want to move it
         $values = array();
         foreach ($this->non_repeated_outputs as $data_output) {
             $data_output->add_values_to_assoc_array($values);
         }
-        //echo "!!!!!!!!!!!!";
-        //print_r($this->primary_columns_to_push_into_children);
         foreach ($this->repeated_outputs as $key => $data_output) {
             $push_down_cols = array();
             // TODO change this next line to push down the primary key if needed
@@ -438,7 +430,6 @@ class Record_Processor {
             $extra_fields = MySQL_Utilities::generate_columns_and_data_lists_from_assoc($push_down_cols);
             $sql_statements = array_merge($sql_statements, $data_output->generate_insert_sql($extra_fields));
         }
-        //echo "%%%%%%%%";
         return $sql_statements;
     }
 
