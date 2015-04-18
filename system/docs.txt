@@ -18,3 +18,45 @@ Known fragile points of system:
         - there is the duplicate check that is worked into the value processing system
           but this could be useful for other applications
 
+Work done near 4/14/15:
+
+TODO - come up with a solid design for the use of the Column_Splitter_Output class
+trying to solve one issue, that is partial record processing before an error stops it
+I ran into an issue with the state being unexpected for cross column validation
+one of the valeus was not added to the array because the last_vals array had not been
+populated and the loop in add_values_to_assoc_array is over last_vals not the output column names
+
+I had two ideas of how this could be used, and this should be formalized
+either multiple values taht are supposed to be placed in separate columns could be split
+or a series of values that all belong together to be consumed in a repeated column output
+or a column_combiner_output (this class actually currently is divergent from the repeated output
+in that it takes a list of value processors instead of data_outputs
+
+a comprimise for now, go back to using the last_vals as the basis for creating the list, and make sure that
+last values is populated here if it's too small
+TODO - what about the case where the sizes change between records and we're processing several
+       need strong protection from leaking data between records, would rather not destroy/realloc the array each time
+       but I should have a last valid index stored somewhere so that I can leave the array around for later use
+       and not be using data that happened to be left from a preivous record with a longer list
+            - this possibly gets more coplicated with null values in the list
+            - reallocation might be the wrong way to think about this, php arrays don't even have a size
+                - don't pre-optimize, just chop the list at the current needed length after writing everything that is needed
+
+TODO - cosider separating the concepts of a splitter that knows its number of output values
+       and has a column name for each from one that splits into a list that will live under a single name
+
+The data output and value processors should probably be merged or their boundries should be clearly defined
+
+TODO - consider where I can use an iterator pattern to unify scalar and list types
+
+new issue, when cross column validation fails it is trying to place an erro character based on the names
+of the columns currently being validated
+    - not all of these names will exist in the original input (where the error reporting belongs)
+    - a single input can be combined/split before cross column validation is applied
+        - if a column is a combination of two, I need to include a message with both source fields, because something about their combination
+          conflicted with another field
+        - if a column is split, I can just put a message on the entire unsplit input (nice to have - tell them which input had issues)
+    - I don't actually have to run cross-column validation after something earlier fails
+        - I wonder if I don't have good enough tests on cross-column validation where the individual field verification passes
+          but the cross-column validation fails
+            - especially in the case where one of the inputs comes from a splitter/combiner

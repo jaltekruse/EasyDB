@@ -41,7 +41,7 @@ foreach ($unit_test_classes as $unit_tests) {
     foreach ($reflection->getMethods(ReflectionMethod::IS_PUBLIC) as $method) {
         if ($method->class == $reflection->getName()) {
             if ( strpos($method->name, 'test') !== FALSE) {
-                echo "Running test: " . $method->name . "<br>\n"; 
+                echo "<b>Running test: " . $method->name . "</b><br>\n";
                 $name = $method->name;
                 try {
                     $unit_tests->$name();
@@ -311,7 +311,7 @@ class Unit_Tests {
         $db = 1;
         $val_processors = array();
         $processor_config = $this->default_processor_config;
-        $data_output = new Column_Splitter_Output( array(), "split_column", ",", FALSE);
+        $data_output = new Column_Splitter_Output( array(), array("split_column"), ",", FALSE);
         $data_output = new Repeated_Column_Output( array( $data_output), 2, 'foreign_key_column', 'table', FALSE, FALSE);
         $record_processor = new Record_Processor(array('user_config' => $this->user_config, 
             'data_outputs' => array($data_output), 'output_table' => 'unused','primary_key_column' => 'unused'));
@@ -321,7 +321,7 @@ class Unit_Tests {
 
     }
 
-    function test_column_combiner_processor() {
+    function date_time_combiner() {
         $db = 1;
         $val_processors = array();
         $processor_config = $this->default_processor_config;
@@ -331,14 +331,103 @@ class Unit_Tests {
         $processor_config['modifiers'] = array(new Time_Validator_Formatter());
         $val_processors[] = new Value_Processor($db, $this->user_config, $processor_config);
         
-        $data_output = new Column_Combiner_Output($val_processors, "date_time", FALSE);
+        return new Column_Combiner_Output($val_processors, "date_time", FALSE);
+    }
 
+    function test_column_combiner_processor() {
+        $data_output = $this->date_time_combiner();
         $record_processor = new Record_Processor(array('user_config' => $this->user_config, 
             'data_outputs' => array($data_output), 'output_table' => 'unused','primary_key_column' => 'unused'));
 		$record_processor->process_row(array("22/3/2012", "2:30"));
 		$outputs = $record_processor->get_outputs();
         $this->assertEquals("2012-3-22 2:30", $outputs[0]->get_last_val());
         $this->assertEquals(array("2012-3-22 2:30"), $record_processor->output_to_array());
+    }
+
+    function test_combiner_before_cross_column_validation() {
+        $db = 1;
+        $processor_config = $this->default_processor_config;
+        $processor_config['modifiers'] = array();
+
+        $data_output = $this->date_time_combiner();
+
+        //$data_output = new Single_Column_Output(new Value_Processor($db, $this->user_config, 
+        //    array( 'column' => 'test', 'modifiers' => array(new Date_Validator_Formatter()))), 'first_date', FALSE);
+
+        $data_output2 = new Single_Column_Output(new Value_Processor($db, $this->user_config, 
+            array( 'column' => 'test', 'modifiers' => array(new Date_Validator_Formatter()))), 'second_date', FALSE);
+
+        $data_output_names = array(
+            'date_time' => 0,
+            'second_date' => 1,
+        );
+
+        $record_processor =  new Record_Processor(array('user_config' => $this->user_config,
+            'output_table' => 'unused',
+            'primary_key_column' => 'unused',
+            'data_output_names' => $data_output_names,
+            'data_outputs' => array($data_output, $data_output2),
+            'cross_column_validators' => array(new Date_Range_Validator(array('start_date' => 'date_time', 'end_date' => 'second_date')))
+            )
+        );
+
+        try {
+            $record_processor->process_row(array("22/3/2012", "not a time", "22/3/2013"));
+        } catch (Exception $ex) {
+            $this->assertEquals(array("22/3/2012", "not a time*", "22/3/2013"), $record_processor->get_last_input_row());
+            $this->assertEquals(Time_Validator_Formatter::INVALID_FORMAT_MSG, $ex->getMessage());
+        }
+
+        try {
+            $record_processor->process_row(array("22/3/2014", "2:30", "22/3/2013"));
+        } catch (Exception $ex) {
+            $this->assertEquals("End date does not occur after start date.", $ex->getMessage());
+        }
+    }
+
+    function test_splitter_before_cross_column_validation() {
+        $db = 1;
+        $processor_config = $this->default_processor_config;
+        $processor_config['modifiers'] = array();
+
+        $data_output = new Column_Splitter_Output( array(
+            new Value_Processor($db, $this->user_config, 
+                array( 'column' => 'test', 'modifiers' => array(new Date_Validator_Formatter()))),
+            new Value_Processor($db, $this->user_config, 
+                array( 'column' => 'test', 'modifiers' => array()))
+        ), array("first_date", "time"), " ", FALSE);
+
+        //$data_output = new Single_Column_Output(new Value_Processor($db, $this->user_config, 
+        //    array( 'column' => 'test', 'modifiers' => array(new Date_Validator_Formatter()))), 'first_date', FALSE);
+
+        $data_output2 = new Single_Column_Output(new Value_Processor($db, $this->user_config, 
+            array( 'column' => 'test', 'modifiers' => array(new Date_Validator_Formatter()))), 'second_date', FALSE);
+
+        $data_output_names = array(
+            'first_date' => 0,
+            'second_date' => 1,
+        );
+
+        $record_processor =  new Record_Processor(array('user_config' => $this->user_config,
+            'output_table' => 'unused',
+            'primary_key_column' => 'unused',
+            'data_output_names' => $data_output_names,
+            'data_outputs' => array($data_output, $data_output2),
+            'cross_column_validators' => array(new Date_Range_Validator(array('start_date' => 'first_date', 'end_date' => 'second_date')))
+            )
+        );
+
+        try {
+            $record_processor->process_row(array("22/3/2012 3:10", "22/3/2013"));
+        } catch (Exception $ex) {
+            throw new Exception("Failed cross column validator - " . $ex->getMessage());
+        }
+
+        try {
+            $record_processor->process_row(array("22/3/2014 2:30", "22/3/2013"));
+        } catch (Exception $ex) {
+            $this->assertEquals("End date does not occur after start date.", $ex->getMessage());
+        }
     }
 
     function test_date_range_validator() {

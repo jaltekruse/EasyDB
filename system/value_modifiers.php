@@ -1,5 +1,23 @@
 <?php
 
+// TODO - move these into a utility class
+// http://stackoverflow.com/questions/834303/startswith-and-endswith-functions-in-php
+function startsWith($haystack, $needle)
+{
+    $length = strlen($needle);
+    return (substr($haystack, 0, $length) === $needle);
+}
+
+function endsWith($haystack, $needle)
+{
+    $length = strlen($needle);
+    if ($length == 0) {
+        return true;
+    }
+
+    return (substr($haystack, -$length) === $needle);
+}
+
 abstract class Value_Modifier {
 
     // this is set in the constructor of the parent
@@ -319,15 +337,18 @@ class Time_Validator_Formatter extends Value_Modifier {
 
     // TODO - expand to handle other formats, seconds and milliseconds
 
+   const INVALID_FORMAT_MSG = "Error with formatting of a time value.";
+
     function modify_value($value) {
         $error_str = "Error with formatting of a time value.";
         $value = strtolower($value);
         $am_pm = NULL;
-        if ( strstr($value, "am") ) {
+        // TODO - make sure this is actually at the end
+        if ( endsWith($value, "am") ) {
             $am_pm = 'am'; 
             $value = str_replace('am', '', $value);
         }
-        if ( strstr($value, 'pm' ) ) {
+        if ( endsWith($value, 'pm' ) ) {
             if ($am_pm == 'am') throw new Exception($error_str);
             else {
                 $am_pm = 'pm'; 
@@ -337,7 +358,7 @@ class Time_Validator_Formatter extends Value_Modifier {
         $time_parts = explode(":", $value);
         // commenting this out for now to alow 12:30:00, but not currently validating or storing seconds
         if (count($time_parts) < 2) {
-            throw new Exception("Error with formatting of a time value.");
+            throw new Exception(self::INVALID_FORMAT_MSG);
         }
         $min = $time_parts[1];
         $hour = $time_parts[0];

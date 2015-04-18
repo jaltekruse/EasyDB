@@ -412,10 +412,19 @@ class Column_Splitter_Output extends Data_Output {
             $val_list[$this->output_column_names[$i]] = $value;
             $i++;
         }
+        // alternative approach, this breaks the case where a series of calues are being split into
+        // a list that will live under one field name in the schema
+        /*
+        foreach ($this->output_column_names as $field_name) { 
+            $val_list[$field_name] = isset($this->last_vals[$i]) ? $this->last_vals[$i] : NULL;
+            $i++;
+        }
+         */
     }
 
     function __construct($value_processors, $output_column_names, $delimiter, $ignore_in_duplicate_check){
         parent::__construct($ignore_in_duplicate_check);
+        // TODO - check that this is an array
         $this->output_column_names = $output_column_names;
         $this->value_processors = $value_processors;
         $this->delimiter = $delimiter;
@@ -424,6 +433,7 @@ class Column_Splitter_Output extends Data_Output {
             $value_processor->init("dummy_table_name_fixme", $this);
         }
         $this->value_processor_count = count($this->value_processors);
+        $this->last_vals = array_fill(0, sizeof($output_column_names), NULL);
     }
     
     function number_of_inputs() { 
@@ -495,11 +505,11 @@ class Column_Splitter_Output extends Data_Output {
                 }
             }
         } catch (Exception $ex) {
-            // TODO - make this report an error to the user and store it in the upload history 
-            throw $ex;
             // TODO - this appearing above and in this catch block is not a mistake, finally blocks not
             // in until php5
             $this->finished_handling_an_input();
+            // TODO - make this report an error to the user and store it in the upload history
+            throw $ex;
         }
     }
 
@@ -536,6 +546,7 @@ class Column_Combiner_Output extends Data_Output {
             $value_processor->init("dummy_table_name_fixme", $this);
         }
         $this->value_processor_count = count($this->value_processors);
+        $this->last_vals = array();
     }
 
     function number_of_inputs() { 
@@ -554,6 +565,7 @@ class Column_Combiner_Output extends Data_Output {
             // TODO - this appearing above and in this catch block is not a mistake, finally blocks not
             // in until php5
             $this->finished_handling_an_input();
+            throw $ex;
         }
     }
 }
