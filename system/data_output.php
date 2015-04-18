@@ -408,9 +408,22 @@ class Column_Splitter_Output extends Data_Output {
     function add_values_to_assoc_array(&$val_list) {
         if ( $this->disabled ) return;
         $i = 0;
-        foreach ($this->last_vals as $value ) { 
-            $val_list[$this->output_column_names[$i]] = $value;
-            $i++;
+        // if there is only a single output column name give all of
+        // the last values in the form of a list under the one field name
+        if (count($this->output_column_names) == 1 &&
+            count($this->last_vals) > 1 ){
+            // arrays are always copied upon re-assignment
+            $val_list[$this->output_column_names[0]] = $this->last_vals;
+        } else if (count($this->output_column_names) == count($this->last_vals) ) {
+            foreach ($this->last_vals as $value ) {
+                $val_list[$this->output_column_names[$i]] = $value;
+                $i++;
+            }
+        } else {
+            // TODO - decide what to do if there is more than one output column name
+            // and the number of column names don't match the number of values
+            throw new Exception("System Error: Wrong number of output column names for number of values " .
+                                "produced by splitter.");
         }
         // alternative approach, this breaks the case where a series of calues are being split into
         // a list that will live under one field name in the schema

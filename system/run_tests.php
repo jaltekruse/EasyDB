@@ -307,18 +307,18 @@ class Unit_Tests {
         $this->assertEquals(array("2012-3-22 1:20", "2012-5-12 2:30"), $record_processor->output_to_array());
     }
 
+    /*
+     * TODO - look back at this and consider design around handling of list types, how can
+     * they be used as inputs to validation and interact with data sources
+     */
     function test_repeated_splitter() {
-        $db = 1;
-        $val_processors = array();
-        $processor_config = $this->default_processor_config;
         $data_output = new Column_Splitter_Output( array(), array("split_column"), ",", FALSE);
         $data_output = new Repeated_Column_Output( array( $data_output), 2, 'foreign_key_column', 'table', FALSE, FALSE);
         $record_processor = new Record_Processor(array('user_config' => $this->user_config, 
             'data_outputs' => array($data_output), 'output_table' => 'unused','primary_key_column' => 'unused'));
 
         $record_processor->process_row(array("val1,val2", "val3,val4"));
-        $this->assertEquals(array("val1", "val2", "val3", "val4"), $record_processor->output_to_array() );
-
+        $this->assertEquals(array(array("val1", "val2"), array("val3", "val4")), $record_processor->output_to_array() );
     }
 
     function date_time_combiner() {
