@@ -60,3 +60,5 @@ of the columns currently being validated
         - I wonder if I don't have good enough tests on cross-column validation where the individual field verification passes
           but the cross-column validation fails
             - especially in the case where one of the inputs comes from a splitter/combiner
+
+TODO - add license header to files
