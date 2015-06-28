@@ -1,0 +1,15 @@
+--------------------
+Easy DB Dev Log
+--------------------
+
+- Jason Altekruse
+
+--------------------
+6/28/15
+--------------------
+- work starting at 4:45
+    - goals
+        - address TODO s in RecordProcessor
+        - add unit tests on both associative array and
+          plain array processing
+

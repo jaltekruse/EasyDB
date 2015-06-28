@@ -87,7 +87,10 @@ class Value_Processor {
         if ( ! isset($parameters['exclude_UTF8_decoder'] ) || $parameters['exclude_UTF8_decoder'] == FALSE) {
             $this->modifiers[] = new UTF8_Decoder();
         }
-       
+
+        // TODO - don't add this by default, to cover cases where it should appear in a series of value
+        // processors, allow a list of default modifiers to be specified at the RecordProcessor level
+        // which will then propogate down to all value processors under that record processor
         // for now value processors will default to having a value modifier of * used, unless
         if ( ! isset($parameters['error_char'])){
             $this->modifiers[] = new Error_Character_Stripper("*");    
