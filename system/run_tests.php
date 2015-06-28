@@ -163,6 +163,10 @@ class Unit_Tests {
             'data_outputs' => $data_outputs,
             'output_table' => 'age_categories_easy_db_test_temp', 'primary_key_column' => 'age_category_id'));
 
+        // TODO - need to make sure that the error character is not supposed to appear in datasets
+        // should probably not have the modifier to remove it activated by default
+        // TODO - better yet, should store error info separated from the data, with a row index or list
+        // of row indexes/ columns that are in error
         // * is here to test the error character remover that is added by default to value processors
         $test_data = "[\"elderly*\", \"5-5-2005\"]";
         $test_data_array = json_decode($test_data, true /* parse into associative arrays*/);

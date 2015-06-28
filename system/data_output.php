@@ -333,8 +333,7 @@ class Repeated_Column_Output extends Data_Output {
     function generate_insert_sql($extra_fields_and_data = NULL) {
         //echo "gen sql statements in repeated data output, blank at:" . $this->blank_at_pos;
         $sql_statements = array();
-        $last_vals;
-        for ($i = 0; $i < $this->current_repetition_count; $i++) { 
+        for ($i = 0; $i < $this->current_repetition_count; $i++) {
             if ( $this->blank_at_pos != -1 && $i > $this->blank_at_pos) {
                 break;
             }
@@ -571,6 +570,10 @@ class Column_Combiner_Output extends Data_Output {
             $this->last_vals[$this->get_current_index()] = $this->value_processors[$this->get_current_index()]->process_value($value); 
 
             // TODO - finally blocks are only in PHP 5.5+, this is a hackt get around it
+            // for this hack to work all the time the finished_handling_an_input method
+            // needs to be idempotent, but that is kind of against the purpose of the function
+            // here the exception should come out of the line above, so it works, but proper finally blocks
+            // are the right way to handle this
             $this->finished_handling_an_input();
         } catch (Exception $ex) {
            // TODO - make this report an error to the user and store it in the upload history 

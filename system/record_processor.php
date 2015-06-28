@@ -83,7 +83,7 @@ class Record_Processor {
     // Tasks Table:             task_id, task_name, start_date, description
     // Task Assignments Table:  employee_id, task_id
     //
-    // This allows for muliple emplyees to be assigned to one task, if a single task were related to a single employee,
+    // This allows for multiple employees to be assigned to one task, if a single task were related to a single employee,
     // the employee_id could simply be added as an attribute of each task.
     //
     // This field allows for the following format to be processed into the task assigments table, this assumes tasks and
@@ -132,7 +132,7 @@ class Record_Processor {
         assert( isset($parameters['data_outputs'])); // "Must supply data outputs for Record_Processor."
         assert( isset($parameters['output_table'])); //"Must supply output table for Record_Processor.");
         assert( isset($parameters['primary_key_column']));//"Must supply primary key column for Record_Processor.");
-        assert( isset($parameters['user_config']), "Must supply user config for Record_Processor.");
+        assert( isset($parameters['user_config'])); //, "Must supply user config for Record_Processor.");
         // TODO - make this configurable
         $this->error_char = "*";
         $this->user_config = $parameters['user_config'];
