@@ -316,12 +316,17 @@ class Record_Processor {
             try {
                 $validator->validate($output_assoc_array);
             } catch ( Exception $ex ) {
+                //echo $ex->getMessage();
+                // TODO - restore placing error char after it is corrected to follow back to the
+                // correct source columns after a change of data shape
+                /*
                 $field_map = $validator->get_field_map();
                 foreach ($field_map as $validator_field => $data_output_field) {
                     if ( isset($this->data_outputs[$this->data_output_names[$data_output_field]])) {
                         $this->place_error_char($this->data_output_names[$data_output_field]);
                     }
                 }
+                */
                 throw $ex;
             }
         }

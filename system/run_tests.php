@@ -100,8 +100,8 @@ class Unit_Tests {
     function init_tests() {
         $db = $this->user_config->get_database_connection();
         // add some temporary tables to be used in the tests, they are removed in the test_clenaup method
-        $drop_table_1 = "DROP TABLE `mbed`.`animals_easy_db_test_temp`";
-        $drop_table_2 = "DROP TABLE `mbed`.`age_categories_easy_db_test_temp`";
+        $drop_table_1 = "DROP TABLE IF EXISTS `mbed`.`animals_easy_db_test_temp`";
+        $drop_table_2 = "DROP TABLE IF EXISTS `mbed`.`age_categories_easy_db_test_temp`";
         $create_table = 
             "CREATE TABLE IF NOT EXISTS `mbed`.`age_categories_easy_db_test_temp` (
               `age_category_id` INT NOT NULL AUTO_INCREMENT,
