@@ -316,9 +316,12 @@ class Record_Processor {
             try {
                 $validator->validate($output_assoc_array);
             } catch ( Exception $ex ) {
-                //echo $ex->getMessage();
+                echo '<!-- ' . $ex->getMessage() . '-->';
                 // TODO - restore placing error char after it is corrected to follow back to the
                 // correct source columns after a change of data shape
+                if (strpos($ex->getMessage(), 'not a member of the recorded group') !== false) {
+                    $this->place_error_char(3);
+                }
                 /*
                 $field_map = $validator->get_field_map();
                 foreach ($field_map as $validator_field => $data_output_field) {
