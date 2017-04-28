@@ -154,7 +154,6 @@ class Sheet_Processor {
                 try {
                     $this->record_processor->process_row($row);
                 } catch (Exception $ex) {
-                    echo $ex->getMessage();
                     $error_count++;
                     continue;
                 }
