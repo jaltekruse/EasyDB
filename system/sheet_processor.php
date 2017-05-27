@@ -167,12 +167,12 @@ class Sheet_Processor {
                     }
                 }
             }
-            if ( (float) $dup_count / ($line_count - $error_count) > $this->resubmit_dup_count_threshold ) {
-                throw new Exception("High percentage of duplicates found, assuming errant sheet re-upload."
-                    . " Nothing new was added to the upload history or final dataset.");
-            }
-            if ( (float) $error_count / ($line_count ) > $this->max_error_threshold ) {
+            // first condition prevents division by zero
+            if ( ($line_count - $error_count) == 0 || (float) $error_count / ($line_count ) > $this->max_error_threshold ) {
                 throw new Exception("High percentage of errors found, check the datasheet and any additional information submitted while uploading for accuracy. "
+                    . " Nothing new was added to the upload history or final dataset.");
+            } else if ( (float) $dup_count / ($line_count - $error_count) > $this->resubmit_dup_count_threshold ) {
+                throw new Exception("High percentage of duplicates found, assuming errant sheet re-upload."
                     . " Nothing new was added to the upload history or final dataset.");
             }
         }
@@ -205,14 +205,12 @@ class Sheet_Processor {
 
             try {
                 $this->record_processor->process_row($row);
-                //echo 'result of processing: ';
-                //print_r($this->record_processor->output_to_array());
-                //echo '<br>';
             } catch (Exception $ex) {
                 // TODO - figure out what to do with errors if no upload history being used
                 // TODO - delete me
                 // if there is currently a record currently in the dataset with this record ID, delete it
                 // TODO - excape input
+                //echo $ex->getMessage() . '<br><br>';
                 $sql = "delete from scan_observations where record_id = '" . $record_id . "'";
                 $result = $this->db->query($sql);
                 if ( ! $result) {

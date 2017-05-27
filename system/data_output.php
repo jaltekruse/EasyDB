@@ -160,7 +160,7 @@ class Single_Column_Output extends Data_Output {
 
 /*
  * Output for a list within a record. Generated either by looking at a series of columns (or series of split
- * combined columns) or a single slit column by passing in the respective data outputs as input to this repeated 
+ * combined columns) or a single split column by passing in the respective data outputs as input to this repeated 
  * column output.
  * 
  * For validation the passed data_outputs will be called repeatedly for a set number of 'repetition cycles', thus 
