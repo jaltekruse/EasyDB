@@ -222,7 +222,8 @@ class Code_Value_Validator extends Value_Modifier {
                 $this->valid_id_values[ $row[$this->id_column] ] = $row[$this->code_column];
             }
         } 
-        else {
+		else {
+            //echo "error reading from database: " . $db->error; 
             throw new Exception("error reading from database: " . $db->error); 
         }
     }
@@ -232,7 +233,8 @@ class Code_Value_Validator extends Value_Modifier {
         if ( isset($this->valid_code_values[$value]) ) {
             return $this->valid_code_values[$value];
         } else {
-            throw new Exception("Code '" . $value . "' not found in the '" . $this->table . "' table."); 
+			throw new Exception("Code '" . $value . "' not found in the '" . $this->table . "' table." .
+			" Some examples of available values are: " . implode(",", array_slice(array_keys($this->valid_code_values), 0, 20))); 
         }
     }
 
@@ -439,7 +441,7 @@ class Date_Validator_Formatter extends Value_Modifier {
         if ( 0 + $date_parts[$this->month_pos] == 0 ) {
             $date_parts[$this->month_pos] = $this->get_month($date_parts[$this->month_pos]);
             if ( is_null($date_parts[$this->month_pos]) ) {
-                throw new Exception(self::ERROR_MESSAGE);
+                throw new Exception(self::ERROR_MESSAGE . " " . $value);
             }
         }
         // check that the month is valid
@@ -448,7 +450,7 @@ class Date_Validator_Formatter extends Value_Modifier {
             0 + $date_parts[$this->day_pos] == 0 ||
             0 + $date_parts[$this->year_pos] == 0 ||
             ! checkdate($date_parts[$this->month_pos], $date_parts[$this->day_pos], $date_parts[$this->year_pos])  ){
-            throw new Exception(self::ERROR_MESSAGE);
+            throw new Exception(self::ERROR_MESSAGE . " " . $value);
         }
         else{
             $date = $this->four_digit_year($date_parts[$this->year_pos]) .
