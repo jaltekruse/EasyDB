@@ -1,6 +1,7 @@
 <?php
 
 include_once($_SERVER['DOCUMENT_ROOT'] . "/easy_db/system/sheet_processor.php");
+include_once($_SERVER['DOCUMENT_ROOT'] . "/easy_db/system/test_files/basic_config.php");
 include_once($_SERVER['DOCUMENT_ROOT'] . "/easy_db/user/user_config.php");
 include_all_tests($_SERVER['DOCUMENT_ROOT'] . "/easy_db/user/UDFs/tests");
 
@@ -11,18 +12,26 @@ function include_all_tests($folder){
     }
 }
 
+// after some change to the server and error was being thrown about the timezone not being set
+// when calling the constructor for a datetime. This is set in php.ini
+// BUT MUST ALSO BE SPECIFIED HERE, DO NOT REMOVE THIS LINE
+date_default_timezone_set("America/Chicago");
+
 // TODO - this currently isn't working, not sure how to access classes declared in
 // an included script file, going to explicitly run the project specific tests seprately
 // for now
 $unit_test_classes = array();
 
+/*
 try{
     $user_config_txt = file_get_contents("test_files/basic_config.json");
 } catch ( Exception $ex ) {
     throw new Exception("Error loading user perferences.", $ex);
 }
-$user_config_parameters = json_decode($user_config_txt, true /* parse into associative arrays*/);
-$user_config = new User_Config($user_config_parameters);
+$user_config_parameters = json_decode($user_config_txt, true); // 2nd param, parse into assoc arrays
+ */
+global $system_test_user_config_parameters;
+$user_config = new User_Config($system_test_user_config_parameters);
 $unit_test_classes[] = new Unit_Tests($user_config);
 /*
 foreach( get_declared_classes() as $class ) {
