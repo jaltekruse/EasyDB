@@ -209,9 +209,6 @@ class Repeated_Column_Output extends Data_Output {
         $this->output_table = $output_table;
         $this->last_vals = array();
         $this->columns_that_cannot_be_null = $columns_that_cannot_be_null;
-        for ($i = 0; $i < $this->repetition_count; $i++){
-            $this->last_vals[$i] = array();     
-        }
     }
 
     function set_parent_record_reader($reader) {
@@ -223,6 +220,9 @@ class Repeated_Column_Output extends Data_Output {
 
     public function set_number_of_repetitions($count) {
         $this->repetition_count = $count;
+        for ($i = 0; $i < $this->repetition_count; $i++){
+            $this->last_vals[$i] = array();     
+        }
     }
 
     function number_of_repetitions() { 

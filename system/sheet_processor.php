@@ -41,8 +41,8 @@ class Sheet_Processor {
         $this->record_id_column_header = "record_id";
         $this->record_table = 'records';
         $this->upload_attempt_table = 'upload_attempts';
-        $this->resubmit_dup_count_threshold = 0.5;
-        $this->max_error_threshold = 0.5;
+        $this->resubmit_dup_count_threshold = 0.2;
+        $this->max_error_threshold = 0.3;
         $this->use_upload_history = $use_upload_history;
     }
 
@@ -140,38 +140,45 @@ class Sheet_Processor {
         // the threshold set the sheet is assumed to be incorrectly re-uploaded by a user and is rejected before anything
         // is added to the database
         $dup_count = 0;
-        $error_count = 0;
+		$error_count = 0;
+		$non_blank_line_count = 0;
         if ( ! $this->disable_duplicate_check && ! $handling_resubmitted_records) {
             $this->add_sheet_processing_metadata($external_columns);
-            $line_count = count($lines);
+			$line_count = count($lines);
+			$sample_error_messages = array();
             for ($i = $lines_to_skip; $i < $line_count; $i++) {
                 $record_id = '';
                 $line = $lines[$i];
                 // ignore blank lines
                 if (trim($line) == "") continue;
-
+				$non_blank_line_count++;
                 $row = explode("\t", $line);
                 try {
                     $this->record_processor->process_row($row);
-                } catch (Exception $ex) {
+				} catch (Exception $ex) {
+					if (count($sample_error_messages) < 15) {
+						$sample_error_messages[] = $ex->getMessage();
+					}
                     $error_count++;
                     continue;
                 }
                 $dup_check = $this->record_processor->generate_duplicate_check();
                 $result = $this->db->query($dup_check);
-                if ( ! $result ) $dev_err .=  "ERROR WITH DUP CHECK!! : " . $this->db->error;
-                else {
+				if ( ! $result ) {
+					echo "ERROR WITH DUP CHECK!! : " . $this->db->error;
+					$dev_err .=  "ERROR WITH DUP CHECK!! : " . $this->db->error;
+				} else {
                     if ($result->num_rows > 0) {
                         $dup_count++;
                         continue;
                     }
                 }
-            }
+			}
             // first condition prevents division by zero
-            if ( ($line_count - $error_count) == 0 || (float) $error_count / ($line_count ) > $this->max_error_threshold ) {
+            if ( ($line_count - $error_count) == 0 || (float) $error_count / ($non_blank_line_count ) > $this->max_error_threshold ) {
                 throw new Exception("High percentage of errors found, check the datasheet and any additional information submitted while uploading for accuracy. "
-                    . " Nothing new was added to the upload history or final dataset.");
-            } else if ( (float) $dup_count / ($line_count - $error_count) > $this->resubmit_dup_count_threshold ) {
+                    . " Nothing new was added to the upload history or final dataset. <br> Some examples of errors:<br>" . implode('<br>', $sample_error_messages));
+            } else if ( (float) $dup_count / ($non_blank_line_count - $error_count) > $this->resubmit_dup_count_threshold ) {
                 throw new Exception("High percentage of duplicates found, assuming errant sheet re-upload."
                     . " Nothing new was added to the upload history or final dataset.");
             }
