@@ -205,9 +205,12 @@ class Repeated_Column_Output extends Data_Output {
         $this->data_outputs = $data_outputs;
         $this->data_output_count = count($this->data_outputs);
         $this->repetition_count = $repetition_count;
+        $this->last_vals = array();
+        for ($i = 0; $i < $this->repetition_count; $i++){
+            $this->last_vals[$i] = array();     
+        }
         $this->relation_column = $relation_column;
         $this->output_table = $output_table;
-        $this->last_vals = array();
         $this->columns_that_cannot_be_null = $columns_that_cannot_be_null;
     }
 
