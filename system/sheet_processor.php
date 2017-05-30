@@ -242,7 +242,7 @@ class Sheet_Processor {
                             $to_save = $this->record_processor->get_last_input_row();
                             // add back the record_id
                             array_unshift($to_save, $record_id);
-                            $this->save_upload_attempt_in_history($to_save, 'duplicate', $record['record_id'] . ' record duplciates these values.', '1', $record_id, $external_columns);
+                            $this->save_upload_attempt_in_history($to_save, 'duplicate', $record['record_id'] . ' record made observing group ' . $record['group_id'] . ' on the same date duplicates these values.', '1', $record_id, $external_columns);
                             continue;
                         }
                     }
