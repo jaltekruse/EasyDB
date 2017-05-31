@@ -301,13 +301,18 @@ class Unit_Tests {
     function test_repeated_column() {
         $db = 1;
         $processor_config = $this->default_processor_config;
-        $processor_config['modifiers'] = array(new Date_Validator_Formatter());
+        $processor_config['modifiers'] = array(new Null_Validator(), new Date_Validator_Formatter());
         $data_output = new Repeated_Column_Output( array( new Single_Column_Output( 
             new Value_Processor($db, $this->user_config, $processor_config), "time", FALSE)), 3, 'foreign_key_column', 'table', TRUE, FALSE);
         $record_processor = new Record_Processor(array('user_config' => $this->user_config,
-        	'data_outputs' => array($data_output), 'output_table' => 'unused','primary_key_column' => 'unused'));
-        $record_processor->process_row(array("22/3/2012", "22/3/2012", "22/3/2012"));
-        $this->assertEquals($record_processor->output_to_array(), array("2012-3-22", "2012-3-22", "2012-3-22"));
+			'data_outputs' => array($data_output), 'output_table' => 'unused','primary_key_column' => 'unused'));
+
+        $record_processor->process_row(array("1/2/2013", "9/8/1997", "5/4/1993"));
+		$this->assertEquals($record_processor->output_to_array(), array("2013-2-1", "1997-8-9", "1993-4-5"));
+
+        $record_processor->process_row(array("22/3/2012", "22/3/2012", ""));
+		$this->assertEquals($record_processor->output_to_array(), array("2012-3-22", "2012-3-22", NULL));
+
     }
 
     function test_repeated_combiner() {
@@ -338,7 +343,10 @@ class Unit_Tests {
         $data_output = new Column_Splitter_Output( array(), array("split_column"), ",", FALSE);
         $data_output = new Repeated_Column_Output( array( $data_output), 2, 'foreign_key_column', 'table', FALSE, FALSE);
         $record_processor = new Record_Processor(array('user_config' => $this->user_config, 
-            'data_outputs' => array($data_output), 'output_table' => 'unused','primary_key_column' => 'unused'));
+			'data_outputs' => array($data_output), 'output_table' => 'unused','primary_key_column' => 'unused'));
+
+        $record_processor->process_row(array("", "val3,val4"));
+        $this->assertEquals(array(NULL, array("val3", "val4")), $record_processor->output_to_array() );
 
         $record_processor->process_row(array("val1,val2", "val3,val4"));
         $this->assertEquals(array(array("val1", "val2"), array("val3", "val4")), $record_processor->output_to_array() );
