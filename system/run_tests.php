@@ -525,11 +525,12 @@ class Unit_Tests {
     }
 
     function test_record_processor() {
-        $record_processor = $this->time_time_time_date_processor();
+		$record_processor = $this->time_time_time_date_processor();
+		$bad_date_value = "22asdf/3/2012";
         try {
-            $record_processor->process_row(array("2:30", "4:30am", "4:30pm", "22asdf/3/2012"));
+            $record_processor->process_row(array("2:30", "4:30am", "4:30pm", $bad_date_value));
         } catch (Exception $ex) {
-            $this->assertEquals("Error with date formatting.", $ex->getMessage(), "Recieved wrong error message.");
+            $this->assertEquals("Error with date formatting. " . $bad_date_value, $ex->getMessage(), "Recieved wrong error message.");
         }
         try {
             $record_processor->process_row(array("2:30", "4:30am", "4:30pm", "22/3/2012", "extra_column"));
@@ -591,19 +592,21 @@ class Unit_Tests {
         $processor_config = $this->default_processor_config;
         $processor_config['modifiers'] = array(new Date_Validator_Formatter(array(Date_Parts::YEAR, Date_Parts::MONTH, Date_Parts::DAY)));
         $vp = new Value_Processor($db, $this->user_config, $processor_config);
-        $this->assertEquals( "2012-4-22", $vp->process_value("2012-apr-22"), "problem validating date.");
+		$this->assertEquals( "2012-4-22", $vp->process_value("2012-apr-22"), "problem validating date.");
+		$bad_value_to_test = "22-MAZ-2012";
         try {
-            $vp->process_value("22-MAZ-2012");
+            $vp->process_value($bad_value_to_test);
             throw new Exception("Should not get here, should have errored into catch block.");
         } catch (Exception $ex) {
-            $this->assertEquals( "Error with date formatting.", $ex->getMessage(), "Caught the wrong error.");
+            $this->assertEquals( "Error with date formatting. " . $bad_value_to_test, $ex->getMessage(), "Caught the wrong error.");
         }
 
+		$bad_value_to_test = "232-MAR-2012";
         try {
-            $vp->process_value("232-MAR-2012");
+            $vp->process_value($bad_value_to_test);
             throw new Exception("Should not get here, should have errored into catch block.");
         } catch (Exception $ex) {
-            $this->assertEquals( "Error with date formatting.", $ex->getMessage(), "Caught the wrong error from date formatter.");
+            $this->assertEquals( "Error with date formatting. " . $bad_value_to_test, $ex->getMessage(), "Caught the wrong error from date formatter.");
         }
         
     }
