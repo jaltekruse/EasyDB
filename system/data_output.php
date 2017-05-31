@@ -188,6 +188,7 @@ class Repeated_Column_Output extends Data_Output {
     // TODO - fix this!! this is used currently to store when the fist blank appears
     // so we know where to stop generating child records rather than trying to insert nulls
     private $blank_at_pos;
+    private $all_blanks_in_current_cycle_so_far;
 
     private $columns_that_cannot_be_null;
 
@@ -236,6 +237,7 @@ class Repeated_Column_Output extends Data_Output {
         $this->current_data_output_index = 0;
         $this->current_repetition_count = 0;
         $this->blank_at_pos = -1;
+		$this->all_blanks_in_current_cycle_so_far = true;
         $this->data_outputs[0]->reset_for_new_row();
     }   
     
@@ -243,28 +245,25 @@ class Repeated_Column_Output extends Data_Output {
         return $this->current_repetion_count;
     }
     
-    function convert_to_output_format($value) {
+	function convert_to_output_format($value) {
+		// TEMP fix, count if there is a complete cycle of blanks equal to the number of processors being cycled through
         // TODO allow blanks in reptitions
-        if ($this->blank_at_pos == -1 && ($value == "" || is_null($value))){
-            $this->blank_at_pos = $this->current_repetition_count;
-        }
+		if ($this->blank_at_pos == -1 && ! ($value == "" || is_null($value))){
+			$this->all_blanks_in_current_cycle_so_far = false;
+		}
+
         try {
             $this->data_outputs[$this->current_data_output_index]->convert_to_output_format($value);
 
             if ( ! $this->data_outputs[$this->current_data_output_index]->can_take_more_input()) {
-                // TODO - allow users to specify which columns can be null, right now no nulls are allowed in
-                // repetitions
-                //print_r($this->last_vals[$this->current_repetition_count]);
-                if (in_array(NULL, $this->last_vals[$this->current_repetition_count], true)) {
-                    if ($this->blank_at_pos == -1){
-                        $this->blank_at_pos = $this->current_repetition_count;
-                    }
-                }
                 $this->data_outputs[$this->current_data_output_index]->
                     add_values_to_assoc_array($this->last_vals[$this->current_repetition_count]);
-                //echo 'in repeated output, curr_output index(1):' . $this->current_data_output_index . ' rep count ' . $this->repetition_count . '<br>';
                 $this->current_data_output_index++;
-                if ($this->current_data_output_index == $this->data_output_count) {
+				if ($this->current_data_output_index == $this->data_output_count) {
+					if ($this->all_blanks_in_current_cycle_so_far) {
+						$this->blank_at_pos = $this->current_repetition_count;
+                    	$this->current_data_output_index = 0;
+					}
                     $this->current_data_output_index = 0;
                     $this->current_repetition_count++;
                 }
@@ -272,15 +271,8 @@ class Repeated_Column_Output extends Data_Output {
                     return; 
                 }
 
-                /*
-                foreach ($this->data_outputs as $output) {
-                    echo get_class($output) . ',';
-                }
-                 */
-                //echo "index in output list: " . $this->current_data_output_index . '<br>';
                 // not actually moving to new row yet, just re-using this functionality from the non-repeated case
                 $this->data_outputs[$this->current_data_output_index]->reset_for_new_row();
-                //echo 'in repeated output, curr_output index:' . $this->current_data_output_index . '<br>';
                 if ( $this->current_data_output_index >= $this->data_output_count) { 
                     $this->current_data_output_index = 0;
                 }
@@ -310,9 +302,11 @@ class Repeated_Column_Output extends Data_Output {
     }
 
     // TODO !! - these do not appear to be handling NULL appropriately!
-    // need to use IS NULL syntax, NULL does not work with '='
+	// need to use IS NULL syntax, NULL does not work with '='
+	// 		- I believe this has been fixed, should confirm with more tests
+
     // TODO - modify this to correctly check for duplicates where there are values that appear more
-    // than once. right now a releated list of ("J", "J", "AD") will incorrectly report as a duplicate for ("J", "AD")
+	// than once. right now a releated list of ("J", "J", "AD") will incorrectly report as a duplicate for ("J", "AD")
     function duplicate_check_sql($unused_intermediate_table = NULL) {
         $pk_col = $this->main_table_primary_key_column;
         $sql = "";
@@ -334,13 +328,11 @@ class Repeated_Column_Output extends Data_Output {
     }
 
     function generate_insert_sql($extra_fields_and_data = NULL) {
-        //echo "gen sql statements in repeated data output, blank at:" . $this->blank_at_pos;
         $sql_statements = array();
         for ($i = 0; $i < $this->current_repetition_count; $i++) {
-            if ( $this->blank_at_pos != -1 && $i > $this->blank_at_pos) {
+			if ( $this->blank_at_pos != -1 && $i > $this->blank_at_pos) {
                 break;
             }
-            //print_r($this->last_vals);
 
             $last_vals = $this->last_vals[$i];
 
@@ -355,7 +347,7 @@ class Repeated_Column_Output extends Data_Output {
             // going to handle this at a level up as it can be added to the new more general extra fields and data parameter
             $sql_statements[] = MySQL_Utilities::insert_sql_based_on_assoc_array(
                 $last_vals, $this->output_table, $extra_fields_and_data);
-        }
+		}
         return $sql_statements;
     }
 
