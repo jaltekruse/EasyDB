@@ -174,8 +174,10 @@ class Sheet_Processor {
                     }
                 }
 			}
-            // first condition prevents division by zero
-            if ( ($line_count - $error_count) == 0 || (float) $error_count / ($non_blank_line_count ) > $this->max_error_threshold ) {
+			// first condition prevents division by zero
+			if ( $non_blank_line_count == 0 ) {
+                throw new Exception("Only blank lines were found on this sheet, so nothing was uploaded for it.");
+			} else if ( (float) $error_count / ($non_blank_line_count ) > $this->max_error_threshold ) {
                 throw new Exception("High percentage of errors found, check the datasheet and any additional information submitted while uploading for accuracy. "
                     . " Nothing new was added to the upload history or final dataset. <br> Some examples of errors:<br>" . implode('<br>', $sample_error_messages));
             } else if ( (float) $dup_count / ($non_blank_line_count - $error_count) > $this->resubmit_dup_count_threshold ) {
