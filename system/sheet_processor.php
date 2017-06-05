@@ -78,8 +78,10 @@ class Sheet_Processor {
      * Function to handle input in the form of delimited text with some other fields
      * outside of the main 'sheet'.
      *
+     * sheet_data - 2d array of strings
+     *
      */
-    function validate_and_insert_records($data, $external_columns) {
+    function validate_and_insert_records($sheet_data, $external_columns) {
         // this time is used as the upload time for all records processed in this input dataset
         // this allows for gathering data that was uploaded at the same time, which would be less
         // precise if the queries for each insertion used a call to the sql NOW() function
@@ -103,17 +105,18 @@ class Sheet_Processor {
         }
         // upload history also uses external columns, but does not need the upload_date in the array
         unset($external_columns['upload_date']);
-        $lines = explode( $this->row_separator, $data);
         $handling_resubmitted_records = FALSE;
         // keep track of the number of lines that should be skipped at the beginning of the sheet
         // including blanks and the header
         $lines_to_skip = 0;
         // read the input line by line
-        foreach ($lines as $line) {
+        foreach ($sheet_data as $row) {
             $lines_to_skip++;
-            if (trim($line) == "" && $this->skip_blank_lines)
-                continue;
-            $row = explode($this->column_separator, $line);
+            $all_blank = TRUE;
+            foreach ($row as $col) {
+                if(trim($col) != '') $all_blank = FALSE;
+            }
+            if ($all_blank) continue;
 
             // check if the column header for reading re-sumbitted data was reached, the column
             // name chosen for the header of the records id column should not appear in the dataset!
@@ -143,14 +146,16 @@ class Sheet_Processor {
         $error_count = 0;
         if ( ! $this->disable_duplicate_check && ! $handling_resubmitted_records) {
             $this->add_sheet_processing_metadata($external_columns);
-            $line_count = count($lines);
+            $line_count = count($sheet_data);
             for ($i = $lines_to_skip; $i < $line_count; $i++) {
-                $record_id = '';
-                $line = $lines[$i];
-                // ignore blank lines
-                if (trim($line) == "") continue;
+                $all_blank = TRUE;
+                $row = $sheet_data[$i];
+                foreach ($row as $col) {
+                    if(trim($col) != '') $all_blank = FALSE;
+                }
+                if ($all_blank) continue;
 
-                $row = explode("\t", $line);
+                $record_id = '';
                 try {
                     $this->record_processor->process_row($row);
                 } catch (Exception $ex) {
@@ -185,14 +190,16 @@ class Sheet_Processor {
         // TODO - this the information must be stored in the subclass between the two method calls for now, this may
         // change in the future
         $this->add_sheet_processing_metadata($external_columns);
-        $line_count = count($lines);
+        $line_count = count($sheet_data);
         for ($i = $lines_to_skip; $i < $line_count; $i++) {
             $record_id = '';
-            $line = $lines[$i];
-			// ignore blank lines
-            if (trim($line) == "") continue;
+            $all_blank = TRUE;
+            $row = $sheet_data[$i];
+            foreach ($row as $col) {
+                if(trim($col) != '') $all_blank = FALSE;
+            }
+            if ($all_blank) continue;
 
-            $row = explode("\t", $line);
             if ($handling_resubmitted_records) {
                 $record_id = trim(array_shift($row));
             }
