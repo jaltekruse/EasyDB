@@ -358,7 +358,7 @@ class Time_Validator_Formatter extends Value_Modifier {
         $time_parts = explode(":", $value);
         // commenting this out for now to alow 12:30:00, but not currently validating or storing seconds
         if (count($time_parts) < 2) {
-            throw new Exception(self::INVALID_FORMAT_MSG);
+            throw new Exception(self::INVALID_FORMAT_MSG . ' ' . $value);
         }
         $min = $time_parts[1];
         $hour = $time_parts[0];
@@ -439,7 +439,7 @@ class Date_Validator_Formatter extends Value_Modifier {
         if ( 0 + $date_parts[$this->month_pos] == 0 ) {
             $date_parts[$this->month_pos] = $this->get_month($date_parts[$this->month_pos]);
             if ( is_null($date_parts[$this->month_pos]) ) {
-                throw new Exception(self::ERROR_MESSAGE);
+                throw new Exception(self::ERROR_MESSAGE . ' ' . $value);
             }
         }
         // check that the month is valid
@@ -448,7 +448,7 @@ class Date_Validator_Formatter extends Value_Modifier {
             0 + $date_parts[$this->day_pos] == 0 ||
             0 + $date_parts[$this->year_pos] == 0 ||
             ! checkdate($date_parts[$this->month_pos], $date_parts[$this->day_pos], $date_parts[$this->year_pos])  ){
-            throw new Exception(self::ERROR_MESSAGE);
+            throw new Exception(self::ERROR_MESSAGE . ' ' . $value);
         }
         else{
             $date = $this->four_digit_year($date_parts[$this->year_pos]) .
@@ -479,7 +479,7 @@ class Date_Validator_Formatter extends Value_Modifier {
                 return '19' . $year;
         }
         else{// not a 2 digit or four digit year
-            throw new Exception(self::ERROR_MESSAGE);
+            throw new Exception(self::ERROR_MESSAGE . ' ' . $value);
         }
     }
 

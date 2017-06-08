@@ -381,12 +381,13 @@ class Unit_Tests {
             'cross_column_validators' => array(new Date_Range_Validator(array('start_date' => 'date_time', 'end_date' => 'second_date')))
             )
         );
-
+        
+        $bad_time_val = "not a time";
         try {
-            $record_processor->process_row(array("22/3/2012", "not a time", "22/3/2013"));
+            $record_processor->process_row(array("22/3/2012", $bad_time_val, "22/3/2013"));
         } catch (Exception $ex) {
-            $this->assertEquals(array("22/3/2012", "not a time*", "22/3/2013"), $record_processor->get_last_input_row());
-            $this->assertEquals(Time_Validator_Formatter::INVALID_FORMAT_MSG, $ex->getMessage());
+            $this->assertEquals(array("22/3/2012", $bad_time_val . "*", "22/3/2013"), $record_processor->get_last_input_row());
+            $this->assertEquals(Time_Validator_Formatter::INVALID_FORMAT_MSG . ' ' . $bad_time_val, $ex->getMessage());
         }
 
         try {
@@ -509,10 +510,11 @@ class Unit_Tests {
 
     function test_record_processor() {
         $record_processor = $this->time_time_time_date_processor();
+        $bad_date_val = "22asdf/3/2012";
         try {
-            $record_processor->process_row(array("2:30", "4:30am", "4:30pm", "22asdf/3/2012"));
+            $record_processor->process_row(array("2:30", "4:30am", "4:30pm", $bad_date_val));
         } catch (Exception $ex) {
-            $this->assertEquals("Error with date formatting.", $ex->getMessage(), "Recieved wrong error message.");
+            $this->assertEquals("Error with date formatting. " . $bad_date_val, $ex->getMessage(), "Recieved wrong error message.");
         }
         try {
             $record_processor->process_row(array("2:30", "4:30am", "4:30pm", "22/3/2012", "extra_column"));
@@ -575,18 +577,28 @@ class Unit_Tests {
         $processor_config['modifiers'] = array(new Date_Validator_Formatter(array(Date_Parts::YEAR, Date_Parts::MONTH, Date_Parts::DAY)));
         $vp = new Value_Processor($db, $this->user_config, $processor_config);
         $this->assertEquals( "2012-4-22", $vp->process_value("2012-apr-22"), "problem validating date.");
+        $bad_date_val = "22-MAZ-2012";
         try {
-            $vp->process_value("22-MAZ-2012");
+            $vp->process_value($bad_date_val);
             throw new Exception("Should not get here, should have errored into catch block.");
         } catch (Exception $ex) {
-            $this->assertEquals( "Error with date formatting.", $ex->getMessage(), "Caught the wrong error.");
+            $this->assertEquals( "Error with date formatting. " . $bad_date_val, $ex->getMessage(), "Caught the wrong error.");
         }
 
+        $bad_date_val = "232-MAR-2012";
         try {
-            $vp->process_value("232-MAR-2012");
+            $vp->process_value($bad_date_val);
             throw new Exception("Should not get here, should have errored into catch block.");
         } catch (Exception $ex) {
-            $this->assertEquals( "Error with date formatting.", $ex->getMessage(), "Caught the wrong error from date formatter.");
+            $this->assertEquals( "Error with date formatting. " . $bad_date_val, $ex->getMessage(), "Caught the wrong error from date formatter.");
+        }
+
+        $bad_date_val = "23-MAR-2012";
+        try {
+            $vp->process_value($bad_date_val);
+            throw new Exception("Should not get here, should have errored into catch block.");
+        } catch (Exception $ex) {
+            $this->assertEquals( "Error with date formatting. " . $bad_date_val, $ex->getMessage(), "Caught the wrong error from date formatter.");
         }
         
     }
@@ -641,16 +653,17 @@ class Unit_Tests {
                 "modifiers" => array(new Value_Repeater(), new Time_Validator_Formatter()))), 'unused', FALSE)
             )));
         $record_processor->process_row(array("2:30", "5:45pm"));
+        $bad_time_val = "not_a_formatted_time";
         try {
-            $record_processor->process_row(array("", "  not_a_formatted_time    "));
+            $record_processor->process_row(array("", "  " . $bad_time_val ."    "));
         } catch (Exception $ex) {
-            $this->assertEquals("Error with formatting of a time value.", $ex->getMessage());
+            $this->assertEquals("Error with formatting of a time value. " . $bad_time_val, $ex->getMessage());
             $this->assertEquals(array("2:30", "not_a_formatted_time*"), $record_processor->get_last_input_row());
         }
         try {
             $record_processor->process_row(array("", "  "));
         } catch (Exception $ex) {
-            $this->assertEquals("Error with formatting of a time value.", $ex->getMessage());
+            $this->assertEquals("Error with formatting of a time value. " . $bad_time_val, $ex->getMessage());
             $this->assertEquals(array("2:30", "not_a_formatted_time*"), $record_processor->get_last_input_row());
         }
     }

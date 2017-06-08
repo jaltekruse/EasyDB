@@ -78,10 +78,10 @@ class Sheet_Processor {
      * Function to handle input in the form of delimited text with some other fields
      * outside of the main 'sheet'.
      *
-     * sheet_data - 2d array of strings
+     * sheet - xlsx iterator object from Spout library
      *
      */
-    function validate_and_insert_records($sheet_data, $external_columns) {
+    function validate_and_insert_records($sheet, $external_columns) {
         // this time is used as the upload time for all records processed in this input dataset
         // this allows for gathering data that was uploaded at the same time, which would be less
         // precise if the queries for each insertion used a call to the sql NOW() function
@@ -110,7 +110,7 @@ class Sheet_Processor {
         // including blanks and the header
         $lines_to_skip = 0;
         // read the input line by line
-        foreach ($sheet_data as $row) {
+		foreach ($sheet->getRowIterator() as $row) {
             $lines_to_skip++;
             $all_blank = TRUE;
             foreach ($row as $col) {
@@ -144,15 +144,20 @@ class Sheet_Processor {
         // is added to the database
         $dup_count = 0;
         $error_count = 0;
+		$line_count = 0;
         if ( ! $this->disable_duplicate_check && ! $handling_resubmitted_records) {
             $this->add_sheet_processing_metadata($external_columns);
-            $line_count = count($sheet_data);
-            for ($i = $lines_to_skip; $i < $line_count; $i++) {
+			$lines_skipped = 0;
+			foreach ($sheet->getRowIterator() as $row) {
+				if ($lines_skipped < $lines_to_skip) {
+					$lines_skipped++;
+					continue;
+				} 
                 $all_blank = TRUE;
-                $row = $sheet_data[$i];
                 foreach ($row as $col) {
                     if(trim($col) != '') $all_blank = FALSE;
                 }
+				$line_count++;
                 if ($all_blank) continue;
 
                 $record_id = '';
@@ -172,11 +177,12 @@ class Sheet_Processor {
                     }
                 }
             }
-            if ( (float) $dup_count / ($line_count - $error_count) > $this->resubmit_dup_count_threshold ) {
+			if ($line_count == 0 ) {
+                throw new Exception("Sheet was empty, nothing was uploaded.");
+			} else if ( ($line_count - $error_count) == 0 || (float) $dup_count / ($line_count - $error_count) > $this->resubmit_dup_count_threshold ) {
                 throw new Exception("High percentage of duplicates found, assuming errant sheet re-upload."
                     . " Nothing new was added to the upload history or final dataset.");
-            }
-            if ( (float) $error_count / ($line_count ) > $this->max_error_threshold ) {
+            } else if ( (float) $error_count / ($line_count ) > $this->max_error_threshold ) {
                 throw new Exception("High percentage of errors found, check the datasheet and any additional information submitted while uploading for accuracy. "
                     . " Nothing new was added to the upload history or final dataset.");
             }
@@ -190,11 +196,15 @@ class Sheet_Processor {
         // TODO - this the information must be stored in the subclass between the two method calls for now, this may
         // change in the future
         $this->add_sheet_processing_metadata($external_columns);
-        $line_count = count($sheet_data);
-        for ($i = $lines_to_skip; $i < $line_count; $i++) {
+		$lines_skipped = 0;
+		foreach ($sheet->getRowIterator() as $row) {
+			if ($lines_skipped < $lines_to_skip) {
+				$lines_skipped++;
+				continue;
+			} 
+
             $record_id = '';
             $all_blank = TRUE;
-            $row = $sheet_data[$i];
             foreach ($row as $col) {
                 if(trim($col) != '') $all_blank = FALSE;
             }
