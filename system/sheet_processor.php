@@ -145,6 +145,7 @@ class Sheet_Processor {
         $dup_count = 0;
         $error_count = 0;
 		$line_count = 0;
+		$sample_error_messages = array();
         if ( ! $this->disable_duplicate_check && ! $handling_resubmitted_records) {
             $this->add_sheet_processing_metadata($external_columns);
 			$lines_skipped = 0;
@@ -191,7 +192,10 @@ class Sheet_Processor {
                 throw new Exception("High percentage of duplicates found, assuming errant sheet re-upload."
                     . " Nothing new was added to the upload history or final dataset.");
             }
-        }
+		}
+
+		echo "skipping actual insertion during testing.<br>";
+		return;
 
         // this method is used to add columns that are needed to process the records if they are re-submitted,
         // but are not stored as part of the records themselves. Currenty this is just used to add the repetition
