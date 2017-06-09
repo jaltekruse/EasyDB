@@ -194,9 +194,6 @@ class Sheet_Processor {
             }
 		}
 
-		echo "skipping actual insertion during testing.<br>";
-		return;
-
         // this method is used to add columns that are needed to process the records if they are re-submitted,
         // but are not stored as part of the records themselves. Currenty this is just used to add the repetition
         // counts for repeated columns. This call is placed here so the sheet processors can use the 
