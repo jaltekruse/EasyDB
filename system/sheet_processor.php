@@ -41,8 +41,8 @@ class Sheet_Processor {
         $this->record_id_column_header = "record_id";
         $this->record_table = 'records';
         $this->upload_attempt_table = 'upload_attempts';
-        $this->resubmit_dup_count_threshold = 0.5;
-        $this->max_error_threshold = 0.5;
+        $this->resubmit_dup_count_threshold = 0.2;
+        $this->max_error_threshold = 0.3;
         $this->use_upload_history = $use_upload_history;
     }
 
@@ -163,14 +163,19 @@ class Sheet_Processor {
                 $record_id = '';
                 try {
                     $this->record_processor->process_row($row);
-                } catch (Exception $ex) {
+				} catch (Exception $ex) {
+					if (count($sample_error_messages) < 15) {
+						$sample_error_messages[] = $ex->getMessage();
+					}
                     $error_count++;
                     continue;
                 }
                 $dup_check = $this->record_processor->generate_duplicate_check();
                 $result = $this->db->query($dup_check);
-                if ( ! $result ) $dev_err .=  "ERROR WITH DUP CHECK!! : " . $this->db->error;
-                else {
+				if ( ! $result ) {
+					echo "ERROR WITH DUP CHECK!! : " . $this->db->error;
+					$dev_err .=  "ERROR WITH DUP CHECK!! : " . $this->db->error;
+				} else {
                     if ($result->num_rows > 0) {
                         $dup_count++;
                         continue;
@@ -179,11 +184,11 @@ class Sheet_Processor {
             }
 			if ($line_count == 0 ) {
                 throw new Exception("Sheet was empty, nothing was uploaded.");
-			} else if ( ($line_count - $error_count) == 0 || (float) $dup_count / ($line_count - $error_count) > $this->resubmit_dup_count_threshold ) {
-                throw new Exception("High percentage of duplicates found, assuming errant sheet re-upload."
-                    . " Nothing new was added to the upload history or final dataset.");
-            } else if ( (float) $error_count / ($line_count ) > $this->max_error_threshold ) {
+			} else if ( ($line_count - $error_count) == 0 || (float) $error_count / $line_count > $this->max_error_threshold) {
                 throw new Exception("High percentage of errors found, check the datasheet and any additional information submitted while uploading for accuracy. "
+                    . " Nothing new was added to the upload history or final dataset. <br> Some examples of errors:<br>" . implode('<br>', $sample_error_messages));
+            } else if ( (float) $dup_count / ($line_count - $error_count) > $this->resubmit_dup_count_threshold ) {
+                throw new Exception("High percentage of duplicates found, assuming errant sheet re-upload."
                     . " Nothing new was added to the upload history or final dataset.");
             }
         }
@@ -222,14 +227,12 @@ class Sheet_Processor {
 
             try {
                 $this->record_processor->process_row($row);
-                //echo 'result of processing: ';
-                //print_r($this->record_processor->output_to_array());
-                //echo '<br>';
             } catch (Exception $ex) {
                 // TODO - figure out what to do with errors if no upload history being used
                 // TODO - delete me
                 // if there is currently a record currently in the dataset with this record ID, delete it
                 // TODO - excape input
+                //echo $ex->getMessage() . '<br><br>';
                 $sql = "delete from scan_observations where record_id = '" . $record_id . "'";
                 $result = $this->db->query($sql);
                 if ( ! $result) {
@@ -261,7 +264,7 @@ class Sheet_Processor {
                             $to_save = $this->record_processor->get_last_input_row();
                             // add back the record_id
                             array_unshift($to_save, $record_id);
-                            $this->save_upload_attempt_in_history($to_save, 'duplicate', '', '1', $record_id, $external_columns);
+                            $this->save_upload_attempt_in_history($to_save, 'duplicate', $record['record_id'] . ' record made observing group ' . $record['group_id'] . ' on the same date duplicates these values.', '1', $record_id, $external_columns);
                             continue;
                         }
                     }

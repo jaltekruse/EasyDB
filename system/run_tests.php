@@ -1,6 +1,7 @@
 <?php
 
 include_once($_SERVER['DOCUMENT_ROOT'] . "/easy_db/system/sheet_processor.php");
+include_once($_SERVER['DOCUMENT_ROOT'] . "/easy_db/system/test_files/basic_config.php");
 include_once($_SERVER['DOCUMENT_ROOT'] . "/easy_db/user/user_config.php");
 include_all_tests($_SERVER['DOCUMENT_ROOT'] . "/easy_db/user/UDFs/tests");
 
@@ -11,18 +12,26 @@ function include_all_tests($folder){
     }
 }
 
+// after some change to the server and error was being thrown about the timezone not being set
+// when calling the constructor for a datetime. This is set in php.ini
+// BUT MUST ALSO BE SPECIFIED HERE, DO NOT REMOVE THIS LINE
+date_default_timezone_set("America/Chicago");
+
 // TODO - this currently isn't working, not sure how to access classes declared in
 // an included script file, going to explicitly run the project specific tests seprately
 // for now
 $unit_test_classes = array();
 
+/*
 try{
     $user_config_txt = file_get_contents("test_files/basic_config.json");
 } catch ( Exception $ex ) {
     throw new Exception("Error loading user perferences.", $ex);
 }
-$user_config_parameters = json_decode($user_config_txt, true /* parse into associative arrays*/);
-$user_config = new User_Config($user_config_parameters);
+$user_config_parameters = json_decode($user_config_txt, true); // 2nd param, parse into assoc arrays
+ */
+global $system_test_user_config_parameters;
+$user_config = new User_Config($system_test_user_config_parameters);
 $unit_test_classes[] = new Unit_Tests($user_config);
 /*
 foreach( get_declared_classes() as $class ) {
@@ -292,13 +301,18 @@ class Unit_Tests {
     function test_repeated_column() {
         $db = 1;
         $processor_config = $this->default_processor_config;
-        $processor_config['modifiers'] = array(new Date_Validator_Formatter());
+        $processor_config['modifiers'] = array(new Null_Validator(), new Date_Validator_Formatter());
         $data_output = new Repeated_Column_Output( array( new Single_Column_Output( 
             new Value_Processor($db, $this->user_config, $processor_config), "time", FALSE)), 3, 'foreign_key_column', 'table', TRUE, FALSE);
         $record_processor = new Record_Processor(array('user_config' => $this->user_config,
-        	'data_outputs' => array($data_output), 'output_table' => 'unused','primary_key_column' => 'unused'));
-        $record_processor->process_row(array("22/3/2012", "22/3/2012", "22/3/2012"));
-        $this->assertEquals($record_processor->output_to_array(), array("2012-3-22", "2012-3-22", "2012-3-22"));
+			'data_outputs' => array($data_output), 'output_table' => 'unused','primary_key_column' => 'unused'));
+
+        $record_processor->process_row(array("1/2/2013", "9/8/1997", "5/4/1993"));
+		$this->assertEquals($record_processor->output_to_array(), array("2013-2-1", "1997-8-9", "1993-4-5"));
+
+        $record_processor->process_row(array("22/3/2012", "22/3/2012", ""));
+		$this->assertEquals($record_processor->output_to_array(), array("2012-3-22", "2012-3-22", NULL));
+
     }
 
     function test_repeated_combiner() {
@@ -329,7 +343,10 @@ class Unit_Tests {
         $data_output = new Column_Splitter_Output( array(), array("split_column"), ",", FALSE);
         $data_output = new Repeated_Column_Output( array( $data_output), 2, 'foreign_key_column', 'table', FALSE, FALSE);
         $record_processor = new Record_Processor(array('user_config' => $this->user_config, 
-            'data_outputs' => array($data_output), 'output_table' => 'unused','primary_key_column' => 'unused'));
+			'data_outputs' => array($data_output), 'output_table' => 'unused','primary_key_column' => 'unused'));
+
+        $record_processor->process_row(array("", "val3,val4"));
+        $this->assertEquals(array(NULL, array("val3", "val4")), $record_processor->output_to_array() );
 
         $record_processor->process_row(array("val1,val2", "val3,val4"));
         $this->assertEquals(array(array("val1", "val2"), array("val3", "val4")), $record_processor->output_to_array() );
