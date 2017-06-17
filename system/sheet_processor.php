@@ -352,7 +352,7 @@ class Sheet_Processor {
             }
             $new_observation_id = $this->record_processor->insert();
             if ($this->use_upload_history) {
-                $result = $this->db->query("update scan_observations set record_id = '" . $record_id . "' where observation_id = '" . $new_observation_id . "'");	
+                $result = $this->db->query("update scan_observations set record_id = '" . $record_id . "' where observation_id = '" . $new_observation_id . "'");   
                 if ( $result ){ } // success
                 else{
                     echo "Error linking uploaded record to upload history: " .  $this->db->error . "<br>";
@@ -379,7 +379,7 @@ class Sheet_Processor {
         if (is_null($record_id) || ! ctype_digit(trim($record_id))){
             unset($record_fields['uploader_id']);
             $record_insert_query = MySQL_Utilities::insert_sql_based_on_assoc_array($record_fields, 'records');
-            $result = $this->db->query($record_insert_query);	
+            $result = $this->db->query($record_insert_query);   
             if ($result){
                 $record_id = $this->db->insert_id;
             }

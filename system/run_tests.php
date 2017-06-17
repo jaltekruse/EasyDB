@@ -269,28 +269,28 @@ class Unit_Tests {
         $data_outputs = array(
             // date time
             new Single_Column_Output( new Value_Processor($db, $user_config, 
-				array( 'column' => 'birthday',
-					   'modifiers' => array(new Date_Validator_Formatter()))),
+                array( 'column' => 'birthday',
+                       'modifiers' => array(new Date_Validator_Formatter()))),
                 'birthday', FALSE),
             new Single_Column_Output( new Value_Processor($db, $user_config, 
-				array( 'column' => 'is_male',
-					   'modifiers' => array(new Boolean_Validator()))),
+                array( 'column' => 'is_male',
+                       'modifiers' => array(new Boolean_Validator()))),
                 'is_male', FALSE),
-			new Single_Column_Output(
-				new Value_Processor($db, $user_config, 
-					array( 'column' => 'age_category_id',
-					       'modifiers' => array(
-							   new Null_Validator(),
-							   new Code_Value_Validator('age_categories_easy_db_test_temp')))),
+            new Single_Column_Output(
+                new Value_Processor($db, $user_config, 
+                    array( 'column' => 'age_category_id',
+                           'modifiers' => array(
+                               new Null_Validator(),
+                               new Code_Value_Validator('age_categories_easy_db_test_temp')))),
                 'age_category_id', FALSE),
-			new Single_Column_Output(
-				new Value_Processor($db, $user_config, 
-					array( 'column' => 'animal_code',
-					       'modifiers' => array(
-							   new Unique_Code_Enforcer('animals_easy_db_test_temp')
-						   )
-					)
-				),
+            new Single_Column_Output(
+                new Value_Processor($db, $user_config, 
+                    array( 'column' => 'animal_code',
+                           'modifiers' => array(
+                               new Unique_Code_Enforcer('animals_easy_db_test_temp')
+                           )
+                    )
+                ),
                 'animal_code', FALSE)
         );
 
@@ -305,13 +305,13 @@ class Unit_Tests {
         $data_output = new Repeated_Column_Output( array( new Single_Column_Output( 
             new Value_Processor($db, $this->user_config, $processor_config), "time", FALSE)), 3, 'foreign_key_column', 'table', TRUE, FALSE);
         $record_processor = new Record_Processor(array('user_config' => $this->user_config,
-			'data_outputs' => array($data_output), 'output_table' => 'unused','primary_key_column' => 'unused'));
+            'data_outputs' => array($data_output), 'output_table' => 'unused','primary_key_column' => 'unused'));
 
         $record_processor->process_row(array("1/2/2013", "9/8/1997", "5/4/1993"));
-		$this->assertEquals($record_processor->output_to_array(), array("2013-2-1", "1997-8-9", "1993-4-5"));
+        $this->assertEquals($record_processor->output_to_array(), array("2013-2-1", "1997-8-9", "1993-4-5"));
 
         $record_processor->process_row(array("22/3/2012", "22/3/2012", ""));
-		$this->assertEquals($record_processor->output_to_array(), array("2012-3-22", "2012-3-22", NULL));
+        $this->assertEquals($record_processor->output_to_array(), array("2012-3-22", "2012-3-22", NULL));
 
     }
 
@@ -343,7 +343,7 @@ class Unit_Tests {
         $data_output = new Column_Splitter_Output( array(), array("split_column"), ",", FALSE);
         $data_output = new Repeated_Column_Output( array( $data_output), 2, 'foreign_key_column', 'table', FALSE, FALSE);
         $record_processor = new Record_Processor(array('user_config' => $this->user_config, 
-			'data_outputs' => array($data_output), 'output_table' => 'unused','primary_key_column' => 'unused'));
+            'data_outputs' => array($data_output), 'output_table' => 'unused','primary_key_column' => 'unused'));
 
         $record_processor->process_row(array("", "val3,val4"));
         $this->assertEquals(array(NULL, array("val3", "val4")), $record_processor->output_to_array() );
@@ -369,8 +369,8 @@ class Unit_Tests {
         $data_output = $this->date_time_combiner();
         $record_processor = new Record_Processor(array('user_config' => $this->user_config, 
             'data_outputs' => array($data_output), 'output_table' => 'unused','primary_key_column' => 'unused'));
-		$record_processor->process_row(array("22/3/2012", "2:30"));
-		$outputs = $record_processor->get_outputs();
+        $record_processor->process_row(array("22/3/2012", "2:30"));
+        $outputs = $record_processor->get_outputs();
         $this->assertEquals("2012-3-22 2:30", $outputs[0]->get_last_val());
         $this->assertEquals(array("2012-3-22 2:30"), $record_processor->output_to_array());
     }
@@ -539,7 +539,7 @@ class Unit_Tests {
             $this->assertEquals("Unexpected extra input at the end of row, starting at 'extra_column'", $ex->getMessage(), "Recieved wrong error message.");
         }
         $record_processor->process_row(array("2:30", "4:30:00am", "4:30:00pm",  "22/3/2012"));
-		$outputs = $record_processor->get_outputs();
+        $outputs = $record_processor->get_outputs();
         $this->assertEquals("2:30", $outputs[0]->get_last_val());
         $this->assertEquals("4:30", $outputs[1]->get_last_val());
         $this->assertEquals("16:30", $outputs[2]->get_last_val());

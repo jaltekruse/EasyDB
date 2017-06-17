@@ -65,9 +65,9 @@ class Error_Character_Stripper extends Value_Modifier {
     }
 
     function modify_value($value) {
-		if (substr($value, strlen($value) - 1) == $this->error_char){
-			return substr($value, 0, strlen($value) - 1);
-		} else {
+        if (substr($value, strlen($value) - 1) == $this->error_char){
+            return substr($value, 0, strlen($value) - 1);
+        } else {
             return $value;
         }
     }
@@ -222,7 +222,7 @@ class Code_Value_Validator extends Value_Modifier {
                 $this->valid_id_values[ $row[$this->id_column] ] = $row[$this->code_column];
             }
         } 
-		else {
+        else {
             //echo "error reading from database: " . $db->error; 
             throw new Exception("error reading from database: " . $db->error); 
         }
@@ -233,8 +233,8 @@ class Code_Value_Validator extends Value_Modifier {
         if ( isset($this->valid_code_values[$value]) ) {
             return $this->valid_code_values[$value];
         } else {
-			throw new Exception("Code '" . $value . "' not found in the '" . $this->table . "' table." .
-			" Some examples of available values are: " . implode(",", array_slice(array_keys($this->valid_code_values), 0, 20))); 
+            throw new Exception("Code '" . $value . "' not found in the '" . $this->table . "' table." .
+            " Some examples of available values are: " . implode(",", array_slice(array_keys($this->valid_code_values), 0, 20))); 
         }
     }
 

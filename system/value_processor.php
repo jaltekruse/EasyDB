@@ -83,12 +83,12 @@ class Value_Processor {
             case Strip_Whitespace::NONE: break; 
             default: throw new Exception("Invalid whitespace handling provided.");
         }
-		// TODO - default is to include this, may want to flip this
-		/*
+        // TODO - default is to include this, may want to flip this
+        /*
         if ( ! isset($parameters['exclude_UTF8_decoder'] ) || $parameters['exclude_UTF8_decoder'] == FALSE) {
             $this->modifiers[] = new UTF8_Decoder();
-		}
-		 */
+        }
+         */
 
         // TODO - don't add this by default, to cover cases where it should appear in a series of value
         // processors, allow a list of default modifiers to be specified at the RecordProcessor level
