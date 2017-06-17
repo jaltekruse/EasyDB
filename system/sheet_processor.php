@@ -19,6 +19,12 @@ class Sheet_Processor {
     private $record_id_column_header;
     private $disable_duplicate_check;
 
+    // TODO - make this calcuated based on the inner members of the record_processor passed
+    // in the constructor
+    // maximum number of expected columns, data after this column number will be truncated
+    // in the upload history and not processed
+    private $max_columns;
+
     private $record_table;
     private $upload_attempt_table;
     private $current_time;
@@ -30,7 +36,8 @@ class Sheet_Processor {
     private $max_error_threshold;
     private $use_upload_history;
 
-    function __construct($db, $record_processor, $external_vals_processor, $use_upload_history = TRUE) {
+    function __construct($db, $record_processor, $external_vals_processor, $use_upload_history = TRUE, $max_columns = 24) {
+        $this->max_columns = $max_columns;
         $this->record_processor = $record_processor;
         $this->external_vals_processor = $external_vals_processor;
         $this->db = $db;
@@ -110,10 +117,13 @@ class Sheet_Processor {
         // including blanks and the header
         $lines_to_skip = 0;
         // read the input line by line
-		foreach ($sheet->getRowIterator() as $row) {
+        foreach ($sheet->getRowIterator() as $row) {
             $lines_to_skip++;
             $all_blank = TRUE;
             foreach ($row as $col) {
+                if (!is_string($col)) {
+                    continue;
+                }
                 if(trim($col) != '') $all_blank = FALSE;
             }
             if ($all_blank) continue;
@@ -121,7 +131,7 @@ class Sheet_Processor {
             // check if the column header for reading re-sumbitted data was reached, the column
             // name chosen for the header of the records id column should not appear in the dataset!
             // especially in the first column as this will corrupt the first line of input
-            if (trim($row[0]) == $this->record_id_column_header) {
+            if (is_string($row[0]) && trim($row[0]) == $this->record_id_column_header) {
                 $handling_resubmitted_records = TRUE;
                 // remove the column to allow the user defined header search to avoid
                 // having to work around it
@@ -132,7 +142,7 @@ class Sheet_Processor {
             // column of input data to be read with the default settings
             // This method should be overridden by users to allow them to set read rules based
             // on the column headers
-            if ( ! $this->check_for_column_headers($row) ) {
+            if ( ! is_string($row[0]) || ! $this->check_for_column_headers($row) ) {
                 $lines_to_skip--;
                 break;
             }
@@ -144,55 +154,82 @@ class Sheet_Processor {
         // is added to the database
         $dup_count = 0;
         $error_count = 0;
-		$line_count = 0;
-		$sample_error_messages = array();
+        $line_count = 0;
+        $sample_error_messages = array();
         if ( ! $this->disable_duplicate_check && ! $handling_resubmitted_records) {
             $this->add_sheet_processing_metadata($external_columns);
-			$lines_skipped = 0;
-			foreach ($sheet->getRowIterator() as $row) {
-				if ($lines_skipped < $lines_to_skip) {
-					$lines_skipped++;
-					continue;
-				} 
+            $lines_skipped = 0;
+            foreach ($sheet->getRowIterator() as $row) {
+                if ($lines_skipped < $lines_to_skip) {
+                    $lines_skipped++;
+                    continue;
+                } 
                 $all_blank = TRUE;
-                foreach ($row as $col) {
-                    if(trim($col) != '') $all_blank = FALSE;
+                $date_index = 0;
+                $time_index = 1;
+                if ($handling_resubmitted_records) {
+                    $date_index++;
+                    $time_index++;
                 }
-				$line_count++;
-                if ($all_blank) continue;
+                $i = 0;
+                foreach ($row as $col) {
+                    if ($i == $date_index || $i == $time_index) {
+                        $i++;
+                        continue;
+                    }
+                    if(trim($col) != '') $all_blank = FALSE;
+                    $i++;
+                }
 
+                if ($all_blank) continue;
+                $line_count++;
+
+                if ($handling_resubmitted_records) {
+                    $record_id = trim(array_shift($row));
+                }
+                if (!is_string($row[$date_index])) {
+                    $row[$date_index] = $row[$date_index]->format('d-m-Y');
+                }
+                if (!is_string($row[$time_index])) {
+                    $row[$time_index] = $row[$time_index]->format('H:i');    
+                }
+                // sometimes excel saves a bunch of extra blank columns, the upload_records table
+                // can only hold 25 columns, which fits all of the use cases for now
+                // TODO - make this a calculation based on the expected number of input values for
+                // the defined validators for a particular sheet processor
+                $row = array_slice($row, 0, $this->max_columns);
                 $record_id = '';
                 try {
                     $this->record_processor->process_row($row);
-				} catch (Exception $ex) {
-					if (count($sample_error_messages) < 15) {
-						$sample_error_messages[] = $ex->getMessage();
-					}
+                } catch (Exception $ex) {
+                    if (count($sample_error_messages) < 15) {
+                        $sample_error_messages[] = $ex->getMessage();
+                    }
                     $error_count++;
                     continue;
                 }
                 $dup_check = $this->record_processor->generate_duplicate_check();
                 $result = $this->db->query($dup_check);
-				if ( ! $result ) {
-					echo "ERROR WITH DUP CHECK!! : " . $this->db->error;
-					$dev_err .=  "ERROR WITH DUP CHECK!! : " . $this->db->error;
-				} else {
+                if ( ! $result ) {
+                    echo "ERROR WITH DUP CHECK!! : " . $this->db->error;
+                    $dev_err .=  "ERROR WITH DUP CHECK!! : " . $this->db->error;
+                } else {
                     if ($result->num_rows > 0) {
                         $dup_count++;
                         continue;
                     }
                 }
             }
-			if ($line_count == 0 ) {
+            if ($line_count == 0 ) {
                 throw new Exception("Sheet was empty, nothing was uploaded.");
-			} else if ( ($line_count - $error_count) == 0 || (float) $error_count / $line_count > $this->max_error_threshold) {
+            } else if ( ($line_count - $error_count) == 0 || (float) $error_count / $line_count > $this->max_error_threshold) {
                 throw new Exception("High percentage of errors found, check the datasheet and any additional information submitted while uploading for accuracy. "
                     . " Nothing new was added to the upload history or final dataset. <br> Some examples of errors:<br>" . implode('<br>', $sample_error_messages));
             } else if ( (float) $dup_count / ($line_count - $error_count) > $this->resubmit_dup_count_threshold ) {
                 throw new Exception("High percentage of duplicates found, assuming errant sheet re-upload."
                     . " Nothing new was added to the upload history or final dataset.");
             }
-		}
+        }
 
         // this method is used to add columns that are needed to process the records if they are re-submitted,
         // but are not stored as part of the records themselves. Currenty this is just used to add the repetition
@@ -202,30 +239,50 @@ class Sheet_Processor {
         // TODO - this the information must be stored in the subclass between the two method calls for now, this may
         // change in the future
         $this->add_sheet_processing_metadata($external_columns);
-		$lines_skipped = 0;
-		foreach ($sheet->getRowIterator() as $row) {
-			if ($lines_skipped < $lines_to_skip) {
-				$lines_skipped++;
-				continue;
-			} 
+        $lines_skipped = 0;
+        foreach ($sheet->getRowIterator() as $row) {
+            if ($lines_skipped < $lines_to_skip) {
+                $lines_skipped++;
+                continue;
+            } 
 
             $record_id = '';
             $all_blank = TRUE;
+            $date_index = 0;
+            $time_index = 1;
+            $i = 0;
             foreach ($row as $col) {
+                if ($i == $date_index || $i == $time_index) {
+                    $i++;
+                    continue;
+                }
                 if(trim($col) != '') $all_blank = FALSE;
+                $i++;
             }
             if ($all_blank) continue;
 
             if ($handling_resubmitted_records) {
                 $record_id = trim(array_shift($row));
             }
-
-			// save this line in the history of uploads, all uploaded raw data is saved as well as application output
-			$record_id = $this->save_upload_attempt_in_history($row, '', '', '0', $record_id, $external_columns);	
-			if ($record_id == false){
-				continue; // there was an issue with the record_id
+            if (!is_string($row[$date_index])) {
+                $row[$date_index] = $row[$date_index]->format('d-m-Y');
+            }
+            if (!is_string($row[$time_index])) {
+                $row[$time_index] = $row[$time_index]->format('H:i');    
             }
 
+            // sometimes excel saves a bunch of extra blank columns, the upload_records table
+            // can only hold 25 columns, which fits all of the use cases for now
+            // TODO - make this a calculation based on the expected number of input values for
+            // the defined validators for a particular sheet processor
+            $row = array_slice($row, 0, $this->max_columns);
+
+            // save this line in the history of uploads, all uploaded raw data is saved as well as application output
+            $record_id = $this->save_upload_attempt_in_history($row, '', '', '0', $record_id, $external_columns);    
+            if ($record_id == false){
+                continue; // there was an issue with the record_id
+            }
+            
             try {
                 $this->record_processor->process_row($row);
             } catch (Exception $ex) {
@@ -243,7 +300,7 @@ class Sheet_Processor {
                 $to_save = $this->record_processor->get_last_input_row();
                 // add back the record id
                 array_unshift($to_save, $record_id);
-	            $this->save_upload_attempt_in_history($to_save, 'error', $ex->getMessage(), '1', $record_id, $external_columns);
+                $this->save_upload_attempt_in_history($to_save, 'error', $ex->getMessage(), '1', $record_id, $external_columns);
                 continue;
             }
             if ( ! $this->disable_duplicate_check ) {
@@ -271,7 +328,7 @@ class Sheet_Processor {
                     }
                 }
             }
-            $this->record_processor->process_row($row);
+            
             // TODO - check if this record ID is already in the dataset, if it is delete the child records, issue an update
             // statement instead of an insert and re-add the children
             $check_previous_sucessful_upload_query = "select observation_id from scan_observations where record_id = " . MySQL_Utilities::quoted_val_or_null($record_id);

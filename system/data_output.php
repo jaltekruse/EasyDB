@@ -19,6 +19,10 @@ abstract class Data_Output {
     function __construct($ignore_in_duplicate_check){
         $this->ignore_in_duplicate_check = $ignore_in_duplicate_check;
         $this->disabled = FALSE;
+        // TODO - look into this, re-using a record_processor caused an inconsistency between
+        // null and empty string for a single column output after a repeated one that didn't
+        // have any value in the incomming dataset (it ended before this column had any data)
+        $this->last_val = '';
     }
 
     function set_parent_record_reader($reader) {
@@ -54,6 +58,7 @@ abstract class Data_Output {
     }
     
     public function reset_for_new_row() {
+        $this->last_val = '';
         $this->inputs_handled_count = 0;
     }   
     
