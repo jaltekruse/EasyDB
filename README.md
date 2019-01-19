@@ -5,7 +5,7 @@ Simple database management interface targeted at scientific data storage.
 This project was born out of an effort to generalize software developed
 to manage the database for Karen Strier's research on the 
 critically endangered Northern Muriqui Monkey. Information about Karen's
-work can be found (here)[https://strierlab.anthropology.wisc.edu/index.htm].
+work can be found (here)[https://strierlab.anthropology.wisc.edu].
 
 Easy DB allows for the declaration of simple validators and mutators
 that can be linked together to define a data processing pipeline. One use
