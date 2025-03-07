@@ -87,15 +87,19 @@ class Unit_Tests {
     protected $default_db;
     protected $test_success_count;
     protected $user_config;
+    protected $db_name;
 
     function __construct($user_config) {
         $this->default_processor_config = array( 'column' => 'test' );
         $this->user_config = $user_config;
+        $this->db_name = "laravel";
     }
 
     protected function assertEquals($expected, $actual, $message = "") {
         if ($expected != $actual) {
+            $e = new \Exception;
             $ret = "";
+            $ret .= implode("<br>", array_slice(explode("\n", $e->getTraceAsString()), 0, 5)) . "<br>".
             $ret .= "Error: expected value <br>'";
             $ret .= print_r($expected, TRUE);
             $ret .= "'<br> but received <br>'";
@@ -109,10 +113,10 @@ class Unit_Tests {
     function init_tests() {
         $db = $this->user_config->get_database_connection();
         // add some temporary tables to be used in the tests, they are removed in the test_clenaup method
-        $drop_table_1 = "DROP TABLE IF EXISTS `mbed`.`animals_easy_db_test_temp`";
-        $drop_table_2 = "DROP TABLE IF EXISTS `mbed`.`age_categories_easy_db_test_temp`";
+        $drop_table_1 = "DROP TABLE IF EXISTS `" . $this->db_name . "`.`animals_easy_db_test_temp`";
+        $drop_table_2 = "DROP TABLE IF EXISTS `" . $this->db_name . "`.`age_categories_easy_db_test_temp`";
         $create_table = 
-            "CREATE TABLE IF NOT EXISTS `mbed`.`age_categories_easy_db_test_temp` (
+            "CREATE TABLE IF NOT EXISTS `" . $this->db_name . "`.`age_categories_easy_db_test_temp` (
               `age_category_id` INT NOT NULL AUTO_INCREMENT,
               `age_category` VARCHAR(45) NOT NULL,
               `date_added` VARCHAR(45) NOT NULL,
@@ -121,7 +125,7 @@ class Unit_Tests {
               UNIQUE INDEX `age_category_id_UNIQUE` (`age_category_id` ASC))
             ENGINE = InnoDB";
         $create_table_2 = 
-            "CREATE TABLE IF NOT EXISTS `mbed`.`animals_easy_db_test_temp` (
+            "CREATE TABLE IF NOT EXISTS `" . $this->db_name . "`.`animals_easy_db_test_temp` (
               `animal_id` INT NOT NULL AUTO_INCREMENT,
               `birthday` DATETIME NULL,
               `is_male` TINYINT(1) NULL,
@@ -132,7 +136,7 @@ class Unit_Tests {
               UNIQUE INDEX `animal_code_UNIQUE` (`animal_code` ASC),
               CONSTRAINT `fk_animals_age_categories2`
                 FOREIGN KEY (`age_category_id`)
-                REFERENCES `mbed`.`age_categories_easy_db_test_temp` (`age_category_id`)
+                REFERENCES `" . $this->db_name . "`.`age_categories_easy_db_test_temp` (`age_category_id`)
                 ON DELETE NO ACTION
                 ON UPDATE NO ACTION)
             ENGINE = InnoDB";

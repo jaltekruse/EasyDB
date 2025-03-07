@@ -389,6 +389,10 @@ abstract class Date_Parts {
     const DAY = 2;
 }
 
+function is_int_like($value) {
+    return is_int($value) || ctype_digit($value);
+}
+
 class Date_Validator_Formatter extends Value_Modifier {
 
     private $year_pos;
@@ -438,7 +442,7 @@ class Date_Validator_Formatter extends Value_Modifier {
         }
 
         //check if we already have integers for months, otherwise replace the month names/abbreviations with 
-        if ( 0 + $date_parts[$this->month_pos] == 0 ) {
+        if ( ! is_int_like($date_parts[$this->month_pos])) {
             $date_parts[$this->month_pos] = $this->get_month($date_parts[$this->month_pos]);
             if ( is_null($date_parts[$this->month_pos]) ) {
                 throw new Exception(self::ERROR_MESSAGE . ' ' . $value);
@@ -446,9 +450,9 @@ class Date_Validator_Formatter extends Value_Modifier {
         }
         // check that the month is valid
         if ( 
-            0 + $date_parts[$this->month_pos] == 0 ||
-            0 + $date_parts[$this->day_pos] == 0 ||
-            0 + $date_parts[$this->year_pos] == 0 ||
+            !is_int_like($date_parts[$this->month_pos]) ||
+            !is_int_like($date_parts[$this->day_pos]) ||
+            !is_int_like($date_parts[$this->year_pos]) ||
             ! checkdate($date_parts[$this->month_pos], $date_parts[$this->day_pos], $date_parts[$this->year_pos])  ){
             throw new Exception(self::ERROR_MESSAGE . ' ' . $value);
         }
@@ -517,14 +521,14 @@ abstract class Strip_Whitespace {
 class Strip_Whitespace_Before extends Value_Modifier {
 
     function modify_value($value) {
-        return ltrim($value);
+        return ltrim($value ?? '');
     }
 }
 
 class Strip_Whitespace_After extends Value_Modifier {
 
     function modify_value($value) {
-        return rtrim($value);
+        return rtrim($value ?? '');
     }
 }
 
@@ -532,7 +536,7 @@ class Strip_Whitespace_After extends Value_Modifier {
 class Strip_Whitespace_Both extends Value_Modifier {
 
     function modify_value($value) {
-        return trim($value);
+        return trim($value ?? '');
     }
 }
 ?>

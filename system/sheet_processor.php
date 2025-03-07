@@ -13,7 +13,7 @@ class Sheet_Processor {
 
     // for delimited text such as CSV
     private $row_separator;
-    private $column_separtor;
+    private $column_separator;
     
     private $skip_blank_lines;
     private $record_id_column_header;
