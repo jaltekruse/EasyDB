@@ -69,7 +69,7 @@ class MySQL_Utilities {
         foreach ($values as $key=>$val) {
             $quoted_vals[$key] = MySQL_Utilities::quoted_val_or_null($val);
         }
-        $sql = "insert into " . $table . " (`" . 
+        $sql = "insert into `" . $table . "` (`" . 
             implode("`,`", array_keys($values)) . "`" . $external_fields . ") VALUES ";
         $sql .= "(" . implode(",", $quoted_vals) . $external_data . ")";
         return $sql;

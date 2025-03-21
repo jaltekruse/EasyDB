@@ -117,7 +117,7 @@ class Sheet_Processor {
         // including blanks and the header
         $lines_to_skip = 0;
         // read the input line by line
-        foreach ($sheet->getRowIterator() as $row) {
+        foreach ($sheet as $row) {
             $lines_to_skip++;
             $all_blank = TRUE;
             foreach ($row as $col) {
@@ -159,7 +159,7 @@ class Sheet_Processor {
         if ( ! $this->disable_duplicate_check && ! $handling_resubmitted_records) {
             $this->add_sheet_processing_metadata($external_columns);
             $lines_skipped = 0;
-            foreach ($sheet->getRowIterator() as $row) {
+            foreach ($sheet as $row) {
                 if ($lines_skipped < $lines_to_skip) {
                     $lines_skipped++;
                     continue;
@@ -240,7 +240,7 @@ class Sheet_Processor {
         // change in the future
         $this->add_sheet_processing_metadata($external_columns);
         $lines_skipped = 0;
-        foreach ($sheet->getRowIterator() as $row) {
+        foreach ($sheet as $row) {
             if ($lines_skipped < $lines_to_skip) {
                 $lines_skipped++;
                 continue;
@@ -295,7 +295,7 @@ class Sheet_Processor {
                 $result = $this->db->query($sql);
                 if ( ! $result) {
                     // TODO - error handling
-                    echo $db->error;
+                    echo $this->db->error;
                 }
                 $to_save = $this->record_processor->get_last_input_row();
                 // add back the record id

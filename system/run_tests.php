@@ -253,7 +253,7 @@ class Unit_Tests {
         $this->assertEquals(array( 'fields' => '`time`, `time2`, `time3`, `date`',
             'data' => "'1:30', '14:00', '5:30', '2005-5-5'" ), $output_fields_and_data);
         $record_processor->set_sheet_external_fields_and_data($output_fields_and_data, $external_fields_processor->output_to_assoc_array());
-        $this->assertEquals("insert into animals_easy_db_test_temp " . 
+        $this->assertEquals("insert into `animals_easy_db_test_temp` " . 
             "(`birthday`,`is_male`,`age_category_id`,`animal_code`, `time`, `time2`, `time3`, `date`) ". 
             "VALUES ('2005-5-5','0',NULL,'jane', '1:30', '14:00', '5:30', '2005-5-5')",
                 $record_processor->insert_main_record_sql());
